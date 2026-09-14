@@ -1,0 +1,18 @@
+test_chat_payload (test_doctor.DoctorTests.test_chat_payload) ... ok
+test_cli_json_exit_codes (test_doctor.DoctorTests.test_cli_json_exit_codes) ... ok
+test_cli_usage_error (test_doctor.DoctorTests.test_cli_usage_error) ... ok
+test_http_failures_no_retry (test_doctor.DoctorTests.test_http_failures_no_retry) ... ok
+test_invalid_config (test_doctor.DoctorTests.test_invalid_config) ... ok
+test_missing_key (test_doctor.DoctorTests.test_missing_key) ... ok
+test_models_and_redaction (test_doctor.DoctorTests.test_models_and_redaction) ... ok
+test_proxy_ignored_by_default (test_doctor.DoctorTests.test_proxy_ignored_by_default) ... ok
+test_redirect_not_followed (test_doctor.DoctorTests.test_redirect_not_followed) ... ok
+test_response_validation (test_doctor.DoctorTests.test_response_validation) ... ok
+test_timeout (test_doctor.DoctorTests.test_timeout) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.568s
+
+OK
+
+Explicit result: tests=11 failures=0 errors=0 success=True

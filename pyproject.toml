@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apiwells"
+version = "0.1.0"
+description = "Endpoint Doctor for OpenAI-compatible model APIs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["api", "diagnostics", "llm", "endpoint"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Testing",
+]
+
+[project.scripts]
+apiwells = "apiwells.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
