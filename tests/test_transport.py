@@ -1,3 +1,4 @@
+import io
 import os
 import socket
 import threading
@@ -7,7 +8,12 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from apiwells.transport import HTTPObservation, open_request
+from apiwells.transport import (
+    HTTPObservation,
+    StreamReadError,
+    iter_response_lines,
+    open_request,
+)
 
 
 class TransportHandler(BaseHTTPRequestHandler):
@@ -238,6 +244,208 @@ class TransportTests(unittest.TestCase):
             result.body,
             b"",
         )
+
+    def test_iter_response_lines_is_lazy(self):
+        class LazyResponse:
+            def __init__(self):
+                self.calls = 0
+                self.lines = iter(
+                    [
+                        b"data: one\n",
+                        b"\n",
+                        b"data: two\n",
+                        b"\n",
+                    ]
+                )
+
+            def readline(self, size=-1):
+                self.calls += 1
+
+                try:
+                    line = next(self.lines)
+                except StopIteration:
+                    return b""
+
+                if size >= 0:
+                    return line[:size]
+
+                return line
+
+        response = LazyResponse()
+
+        lines = iter_response_lines(
+            response,
+            line_limit=100,
+            stream_limit=1000,
+        )
+
+        self.assertEqual(
+            response.calls,
+            0,
+        )
+
+        self.assertEqual(
+            next(lines),
+            b"data: one\n",
+        )
+
+        self.assertEqual(
+            response.calls,
+            1,
+        )
+
+        self.assertEqual(
+            next(lines),
+            b"\n",
+        )
+
+        self.assertEqual(
+            response.calls,
+            2,
+        )
+
+    def test_iter_response_lines_preserves_raw_lines(self):
+        response = io.BytesIO(
+            b"data: one\r\n"
+            b"\r\n"
+            b"data: two\n"
+            b"\n"
+        )
+
+        lines = list(
+            iter_response_lines(
+                response,
+                line_limit=100,
+                stream_limit=1000,
+            )
+        )
+
+        self.assertEqual(
+            lines,
+            [
+                b"data: one\r\n",
+                b"\r\n",
+                b"data: two\n",
+                b"\n",
+            ],
+        )
+
+    def test_iter_response_lines_stops_at_eof(self):
+        response = io.BytesIO(
+            b"data: one\n\n"
+        )
+
+        lines = list(
+            iter_response_lines(
+                response,
+                line_limit=100,
+                stream_limit=1000,
+            )
+        )
+
+        self.assertEqual(
+            lines,
+            [
+                b"data: one\n",
+                b"\n",
+            ],
+        )
+
+    def test_iter_response_lines_rejects_oversized_line(self):
+        response = io.BytesIO(
+            b"12345678901\n"
+        )
+
+        with self.assertRaisesRegex(
+            StreamReadError,
+            "line exceeded",
+        ):
+            list(
+                iter_response_lines(
+                    response,
+                    line_limit=10,
+                    stream_limit=100,
+                )
+            )
+
+    def test_iter_response_lines_rejects_oversized_stream(self):
+        response = io.BytesIO(
+            b"12345\n"
+            b"67890\n"
+        )
+
+        with self.assertRaisesRegex(
+            StreamReadError,
+            "total size",
+        ):
+            list(
+                iter_response_lines(
+                    response,
+                    line_limit=10,
+                    stream_limit=10,
+                )
+            )
+
+    def test_iter_response_lines_accepts_exact_limits(self):
+        response = io.BytesIO(
+            b"1234\n"
+            b"5678\n"
+        )
+
+        lines = list(
+            iter_response_lines(
+                response,
+                line_limit=5,
+                stream_limit=10,
+            )
+        )
+
+        self.assertEqual(
+            lines,
+            [
+                b"1234\n",
+                b"5678\n",
+            ],
+        )
+
+    def test_iter_response_lines_validates_limits(self):
+        response = io.BytesIO(
+            b"data: one\n\n"
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "line_limit",
+        ):
+            list(
+                iter_response_lines(
+                    response,
+                    line_limit=0,
+                )
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "stream_limit",
+        ):
+            list(
+                iter_response_lines(
+                    response,
+                    stream_limit=0,
+                )
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "greater than or equal",
+        ):
+            list(
+                iter_response_lines(
+                    response,
+                    line_limit=100,
+                    stream_limit=50,
+                )
+            )
 
 if __name__ == "__main__":
     unittest.main()

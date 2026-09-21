@@ -43,6 +43,56 @@ def open_request(request, timeout: float, use_env_proxy: bool = False):
 
 DEFAULT_RESPONSE_LIMIT = 2 * 1024 * 1024
 
+DEFAULT_STREAM_LINE_LIMIT = 256 * 1024
+DEFAULT_STREAM_LIMIT = 8 * 1024 * 1024
+
+
+class StreamReadError(RuntimeError):
+    """Raised when a streaming response violates local safety limits."""
+
+
+def iter_response_lines(
+    response,
+    line_limit: int = DEFAULT_STREAM_LINE_LIMIT,
+    stream_limit: int = DEFAULT_STREAM_LIMIT,
+):
+    """Yield one raw response line at a time without buffering the full body."""
+
+    if line_limit <= 0:
+        raise ValueError("line_limit must be greater than zero.")
+
+    if stream_limit <= 0:
+        raise ValueError("stream_limit must be greater than zero.")
+
+    if stream_limit < line_limit:
+        raise ValueError(
+            "stream_limit must be greater than or equal to line_limit."
+        )
+
+    total_bytes = 0
+
+    while True:
+        raw_line = response.readline(
+            line_limit + 1
+        )
+
+        if not raw_line:
+            return
+
+        if len(raw_line) > line_limit:
+            raise StreamReadError(
+                "Streaming response line exceeded the allowed size."
+            )
+
+        total_bytes += len(raw_line)
+
+        if total_bytes > stream_limit:
+            raise StreamReadError(
+                "Streaming response exceeded the allowed total size."
+            )
+
+        yield raw_line
+
 
 @dataclass(frozen=True)
 class ObservedHTTP:
