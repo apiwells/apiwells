@@ -86,6 +86,70 @@ class DeepHandler(BaseHTTPRequestHandler):
             )
         )
 
+        # Tool Calling requests must be detected before the
+        # ordinary non-stream Chat branch because Tool Calling
+        # itself also uses stream=False.
+        if "tools" in payload:
+            has_tool_result = any(
+                isinstance(message, dict)
+                and message.get("role") == "tool"
+                for message in payload.get(
+                    "messages",
+                    []
+                )
+            )
+
+            self.send_response(200)
+            self.send_header(
+                "Content-Type",
+                "application/json",
+            )
+            self.end_headers()
+
+            if has_tool_result:
+                raw = {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": (
+                                    "The result is 42."
+                                ),
+                            }
+                        }
+                    ]
+                }
+
+            else:
+                raw = {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call-1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "add_numbers",
+                                            "arguments": (
+                                                '{"a":17,"b":25}'
+                                            ),
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                }
+
+            self.wfile.write(
+                json.dumps(raw).encode()
+            )
+            return
+
+        # Streaming request.
         if payload.get("stream"):
             self.send_response(200)
             self.send_header(
@@ -115,6 +179,7 @@ class DeepHandler(BaseHTTPRequestHandler):
 
             return
 
+        # Ordinary non-stream Chat request.
         self.send_response(200)
         self.send_header(
             "Content-Type",
@@ -167,7 +232,7 @@ class DeepRunnerTests(unittest.TestCase):
     def setUp(self):
         DeepHandler.calls.clear()
 
-    def test_deep_chain_runs_basic_chat_and_streaming(self):
+    def test_deep_chain_runs_basic_chat_streaming_and_tools(self):
         results = run_deep_diagnostics(
             self.base + "/v1",
             model="demo-model",
@@ -187,6 +252,7 @@ class DeepRunnerTests(unittest.TestCase):
                 "models",
                 "chat",
                 "streaming",
+                "tool_calling",
             ],
         )
 
@@ -198,7 +264,17 @@ class DeepRunnerTests(unittest.TestCase):
             )
         )
 
-        streaming = results[-1]
+        streaming = next(
+            result
+            for result in results
+            if result.name == "streaming"
+        )
+
+        tool_calling = next(
+            result
+            for result in results
+            if result.name == "tool_calling"
+        )
 
         self.assertEqual(
             streaming.support,
@@ -215,9 +291,46 @@ class DeepRunnerTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            tool_calling.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertEqual(
+            tool_calling.support,
+            SupportStatus.SUPPORTED,
+        )
+
+        self.assertTrue(
+            tool_calling.evidence[
+                "round_trip_completed"
+            ]
+        )
+
+        self.assertEqual(
+            tool_calling.evidence[
+                "local_tool_result"
+            ],
+            42,
+        )
+
+        self.assertEqual(
+            tool_calling.metrics[
+                "request_count"
+            ],
+            2,
+        )
+
+        # 整个 Deep 链应该产生：
+        # 1 x GET /models
+        # 1 x Chat POST
+        # 1 x Streaming POST
+        # 2 x Tool Calling POST
+        self.assertEqual(
             [call[0] for call in DeepHandler.calls],
             [
                 "GET",
+                "POST",
+                "POST",
                 "POST",
                 "POST",
             ],
@@ -228,22 +341,75 @@ class DeepRunnerTests(unittest.TestCase):
             "/v1/models",
         )
 
-        self.assertEqual(
-            DeepHandler.calls[1][1],
-            "/v1/chat/completions",
-        )
+        for call in DeepHandler.calls[1:]:
+            self.assertEqual(
+                call[1],
+                "/v1/chat/completions",
+            )
 
-        self.assertEqual(
-            DeepHandler.calls[2][1],
-            "/v1/chat/completions",
-        )
-
+        # Chat request
         self.assertFalse(
             DeepHandler.calls[1][3]["stream"]
         )
 
+        # Streaming request
         self.assertTrue(
             DeepHandler.calls[2][3]["stream"]
+        )
+
+        # ---------- Tool Calling round trip ----------
+
+        first_tool_payload = (
+            DeepHandler.calls[3][3]
+        )
+
+        second_tool_payload = (
+            DeepHandler.calls[4][3]
+        )
+
+        # 第一次 Tool 请求必须真正声明 add_numbers 工具
+        self.assertIn(
+            "tools",
+            first_tool_payload,
+        )
+
+        self.assertEqual(
+            first_tool_payload[
+                "tools"
+            ][0]["function"]["name"],
+            "add_numbers",
+        )
+
+        self.assertFalse(
+            first_tool_payload["stream"]
+        )
+
+        # 第二次请求必须把本地工具执行结果回传给模型
+        tool_messages = [
+            message
+            for message in second_tool_payload[
+                "messages"
+            ]
+            if message.get("role") == "tool"
+        ]
+
+        self.assertEqual(
+            len(tool_messages),
+            1,
+        )
+
+        self.assertEqual(
+            tool_messages[0][
+                "tool_call_id"
+            ],
+            "call-1",
+        )
+
+        self.assertEqual(
+            tool_messages[0][
+                "content"
+            ],
+            "42",
         )
 
     def test_basic_failure_blocks_billable_probes(self):

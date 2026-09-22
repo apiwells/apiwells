@@ -10,6 +10,7 @@ from .connectivity import (
 )
 from .models import ModelsProbe
 from .streaming import StreamingProbe
+from .tools import ToolCallingProbe
 
 __all__ = [
     "AuthProbe",
@@ -19,5 +20,6 @@ __all__ = [
     "ModelsProbe",
     "StreamingProbe",
     "TLSProbe",
+    "ToolCallingProbe",
     "URLProbe",
 ]

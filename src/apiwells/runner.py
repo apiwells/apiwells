@@ -13,6 +13,7 @@ from .probes import (
     StreamingProbe,
     TLSProbe,
     URLProbe,
+    ToolCallingProbe,
 )
 from .probes.models import build_models_observation
 
@@ -187,6 +188,13 @@ def run_deep_diagnostics(
                 key=key,
                 timeout=timeout,
                 max_tokens=max_tokens,
+                use_env_proxy=use_env_proxy,
+            ),
+            ToolCallingProbe(
+                base_url=normalized_base,
+                model=model,
+                key=key,
+                timeout=timeout,
                 use_env_proxy=use_env_proxy,
             ),
         ]
