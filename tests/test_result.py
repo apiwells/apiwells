@@ -66,6 +66,33 @@ class ProbeResultTests(unittest.TestCase):
                 summary="",
             )
 
+    def test_accepts_registered_error_code(self):
+        result = ProbeResult(
+            name="dns",
+            status=ResultStatus.FAIL,
+            support=SupportStatus.NOT_APPLICABLE,
+            summary="DNS resolution failed.",
+            error_code="DNS_ERROR",
+        )
+
+        self.assertEqual(
+            result.error_code,
+            "DNS_ERROR",
+        )
+
+    def test_rejects_unknown_error_code(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Unknown error_code",
+        ):
+            ProbeResult(
+                name="dns",
+                status=ResultStatus.FAIL,
+                support=SupportStatus.NOT_APPLICABLE,
+                summary="DNS resolution failed.",
+                error_code="MADE_UP_ERROR",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

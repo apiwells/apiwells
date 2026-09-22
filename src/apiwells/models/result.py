@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from .errors import ERROR_CODES
 
 class ResultStatus(str, Enum):
     """Execution outcome of a probe."""
@@ -46,3 +47,10 @@ class ProbeResult:
 
         if not isinstance(self.support, SupportStatus):
             raise TypeError("ProbeResult.support must be a SupportStatus.")
+        if (
+            self.error_code is not None
+            and self.error_code not in ERROR_CODES
+        ):
+            raise ValueError(
+                f"Unknown error_code: {self.error_code}"
+            )
