@@ -10,6 +10,10 @@ from . import __version__
 from .config import normalize_endpoint
 from .models import ResultStatus
 from .probes import ChatProbe, ModelsProbe
+from .reporting import (
+    redact_probe_result,
+    redact_value,
+)
 
 endpoint = normalize_endpoint
 
@@ -208,8 +212,13 @@ def diagnose(
             use_env_proxy=use_env_proxy,
         ).run()
 
-        report = _legacy_report_from_probe(
+        safe_result = redact_probe_result(
             result,
+            secrets=(key,),
+        )
+
+        report = _legacy_report_from_probe(
+            safe_result,
             "models",
         )
 
@@ -223,8 +232,13 @@ def diagnose(
             use_env_proxy=use_env_proxy,
         ).run()
 
-        report = _legacy_report_from_probe(
+        safe_result = redact_probe_result(
             result,
+            secrets=(key,),
+        )
+
+        report = _legacy_report_from_probe(
+            safe_result,
             "chat",
         )
 
@@ -233,7 +247,10 @@ def diagnose(
         2,
     )
 
-    return report
+    return redact_value(
+        report,
+        secrets=(key,),
+    )
 
 
 def main(argv=None):
