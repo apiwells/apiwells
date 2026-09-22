@@ -6,9 +6,11 @@ from .config import normalize_endpoint
 from .models import ProbeResult, ResultStatus
 from .probes import (
     AuthProbe,
+    ChatProbe,
     DNSProbe,
     HTTPProbe,
     ModelsProbe,
+    StreamingProbe,
     TLSProbe,
     URLProbe,
 )
@@ -101,4 +103,96 @@ def run_basic_diagnostics(
     return [
         url_result,
         *runner.run(),
+    ]
+
+
+def run_deep_diagnostics(
+    base_url: str,
+    model: str,
+    key: str = "",
+    timeout: float = 15.0,
+    max_tokens: int = 8,
+    allow_http: bool = False,
+    use_env_proxy: bool = False,
+    authentication_requested: bool = True,
+) -> list[ProbeResult]:
+    """Run the currently implemented Deep Doctor diagnostic chain.
+
+    During staged v0.2 development this currently extends Basic Doctor
+    with non-stream Chat and Streaming probes. It is not yet exposed as
+    the final CLI Deep Mode.
+    """
+
+    if not isinstance(model, str) or not model.strip():
+        raise ValueError(
+            "Deep diagnostics require a nonempty model."
+        )
+
+    basic_results = run_basic_diagnostics(
+        base_url=base_url,
+        key=key,
+        timeout=timeout,
+        allow_http=allow_http,
+        use_env_proxy=use_env_proxy,
+        authentication_requested=authentication_requested,
+        expected_model=model,
+    )
+
+    # Billable probes must not run when the non-billable Basic chain
+    # has not established a sufficiently healthy endpoint.
+    if any(
+        result.status is not ResultStatus.PASS
+        for result in basic_results
+    ):
+        return basic_results
+
+    models_result = next(
+        (
+            result
+            for result in basic_results
+            if result.name == "models"
+        ),
+        None,
+    )
+
+    # Be defensive even if ModelsProbe currently represents a missing
+    # requested model as PASS/PARTIAL differently in the future.
+    if (
+        models_result is not None
+        and models_result.evidence.get(
+            "target_model_found"
+        )
+        is False
+    ):
+        return basic_results
+
+    normalized_base = normalize_endpoint(
+        base_url,
+        allow_http=allow_http,
+    )
+
+    deep_runner = DoctorRunner(
+        [
+            ChatProbe(
+                base_url=normalized_base,
+                model=model,
+                key=key,
+                timeout=timeout,
+                max_tokens=max_tokens,
+                use_env_proxy=use_env_proxy,
+            ),
+            StreamingProbe(
+                base_url=normalized_base,
+                model=model,
+                key=key,
+                timeout=timeout,
+                max_tokens=max_tokens,
+                use_env_proxy=use_env_proxy,
+            ),
+        ]
+    )
+
+    return [
+        *basic_results,
+        *deep_runner.run(),
     ]
