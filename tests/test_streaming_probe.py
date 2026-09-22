@@ -335,6 +335,48 @@ class StreamingHandler(BaseHTTPRequestHandler):
             b"\n",
         ]
 
+        if prefix == "usage":
+            lines.extend(
+                [
+                    (
+                        b'data: {"choices":[],'
+                        b'"usage":{"prompt_tokens":10,'
+                        b'"completion_tokens":5,'
+                        b'"total_tokens":15}}\n'
+                    ),
+                    b"\n",
+                ]
+            )
+
+        elif prefix == "partialusage":
+            lines.extend(
+                [
+                    (
+                        b'data: {"choices":[],'
+                        b'"usage":{"prompt_tokens":10,'
+                        b'"completion_tokens":5}}\n'
+                    ),
+                    b"\n",
+                ]
+            )
+
+        elif prefix == "splitusage":
+            lines.extend(
+                [
+                    (
+                        b'data: {"choices":[],'
+                        b'"usage":{"prompt_tokens":10}}\n'
+                    ),
+                    b"\n",
+                    (
+                        b'data: {"choices":[],'
+                        b'"usage":{"completion_tokens":5,'
+                        b'"total_tokens":15}}\n'
+                    ),
+                    b"\n",
+                ]
+            )
+
         if prefix != "nodone":
             lines.extend(
                 [
@@ -693,6 +735,130 @@ class StreamingProbeTests(unittest.TestCase):
                 self.base + "/valid",
                 model="",
             )
+
+    def test_complete_stream_usage_is_added_to_metrics(self):
+        result = StreamingProbe(
+            self.base + "/usage",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertTrue(
+            result.metrics["usage_available"]
+        )
+
+        self.assertEqual(
+            result.metrics["prompt_tokens"],
+            10,
+        )
+
+        self.assertEqual(
+            result.metrics["completion_tokens"],
+            5,
+        )
+
+        self.assertEqual(
+            result.metrics["total_tokens"],
+            15,
+        )
+
+        self.assertTrue(
+            result.evidence["usage_available"]
+        )
+
+    def test_partial_stream_usage_is_not_estimated(self):
+        result = StreamingProbe(
+            self.base + "/partialusage",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertTrue(
+            result.metrics["usage_available"]
+        )
+
+        self.assertEqual(
+            result.metrics["prompt_tokens"],
+            10,
+        )
+
+        self.assertEqual(
+            result.metrics["completion_tokens"],
+            5,
+        )
+
+        self.assertIsNone(
+            result.metrics["total_tokens"]
+        )
+
+    def test_missing_stream_usage_is_reported_unavailable(self):
+        result = StreamingProbe(
+            self.base + "/valid",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertFalse(
+            result.metrics["usage_available"]
+        )
+
+        self.assertIsNone(
+            result.metrics["prompt_tokens"]
+        )
+
+        self.assertIsNone(
+            result.metrics["completion_tokens"]
+        )
+
+        self.assertIsNone(
+            result.metrics["total_tokens"]
+        )
+
+        self.assertFalse(
+            result.evidence["usage_available"]
+        )
+
+    def test_usage_fields_can_be_merged_across_stream_chunks(self):
+        result = StreamingProbe(
+            self.base + "/splitusage",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertTrue(
+            result.metrics["usage_available"]
+        )
+
+        self.assertEqual(
+            result.metrics["prompt_tokens"],
+            10,
+        )
+
+        self.assertEqual(
+            result.metrics["completion_tokens"],
+            5,
+        )
+
+        self.assertEqual(
+            result.metrics["total_tokens"],
+            15,
+        )
 
 
 if __name__ == "__main__":

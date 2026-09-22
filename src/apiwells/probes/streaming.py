@@ -15,6 +15,7 @@ from ..transport import (
     iter_response_lines,
     open_request,
 )
+from .usage import UsageObservation, extract_usage
 
 
 class SSEParseError(ValueError):
@@ -179,15 +180,51 @@ class StreamingProbe:
         return False
 
     @staticmethod
+    def _merge_usage(
+        current: UsageObservation,
+        observed: UsageObservation,
+    ) -> UsageObservation:
+        """Merge only token counts actually reported by the provider."""
+
+        if not observed.available:
+            return current
+
+        return UsageObservation(
+            available=True,
+            prompt_tokens=(
+                observed.prompt_tokens
+                if observed.prompt_tokens is not None
+                else current.prompt_tokens
+            ),
+            completion_tokens=(
+                observed.completion_tokens
+                if observed.completion_tokens is not None
+                else current.completion_tokens
+            ),
+            total_tokens=(
+                observed.total_tokens
+                if observed.total_tokens is not None
+                else current.total_tokens
+            ),
+        )
+
+    @staticmethod
     def _metrics(
         total_latency_ms: float,
         ttft_ms: float | None,
         chunk_count: int,
+        usage: UsageObservation | None = None,
     ) -> dict:
+        if usage is None:
+            usage = UsageObservation(
+                available=False
+            )
+
         return {
             "ttft_ms": ttft_ms,
             "total_latency_ms": total_latency_ms,
             "chunk_count": chunk_count,
+            **usage.as_metrics(),
         }
 
     def run(self) -> ProbeResult:
@@ -257,10 +294,15 @@ class StreamingProbe:
             )
 
         parser = SSEParser()
+
         chunk_count = 0
         ttft_ms: float | None = None
         content_received = False
-        usage_available = False
+
+        usage = UsageObservation(
+            available=False
+        )
+
         terminal_event_seen = False
         sse_event_seen = False
         completion_time: float | None = None
@@ -326,6 +368,7 @@ class StreamingProbe:
                         chunk = json.loads(
                             event.data
                         )
+
                     except (
                         ValueError,
                         UnicodeError,
@@ -351,13 +394,14 @@ class StreamingProbe:
                                 total_latency_ms,
                                 ttft_ms,
                                 chunk_count,
+                                usage,
                             ),
                             evidence={
                                 "http_status": http_status,
                                 "model": self.model,
                                 "content_type": content_type,
                                 "content_received": content_received,
-                                "usage_available": usage_available,
+                                "usage_available": usage.available,
                                 "terminal_event_seen": (
                                     terminal_event_seen
                                 ),
@@ -386,13 +430,14 @@ class StreamingProbe:
                                 total_latency_ms,
                                 ttft_ms,
                                 chunk_count,
+                                usage,
                             ),
                             evidence={
                                 "http_status": http_status,
                                 "model": self.model,
                                 "content_type": content_type,
                                 "content_received": content_received,
-                                "usage_available": usage_available,
+                                "usage_available": usage.available,
                                 "terminal_event_seen": (
                                     terminal_event_seen
                                 ),
@@ -402,11 +447,14 @@ class StreamingProbe:
 
                     chunk_count += 1
 
-                    if isinstance(
-                        chunk.get("usage"),
-                        dict,
-                    ):
-                        usage_available = True
+                    observed_usage = extract_usage(
+                        chunk
+                    )
+
+                    usage = self._merge_usage(
+                        usage,
+                        observed_usage,
+                    )
 
                     if (
                         not content_received
@@ -415,6 +463,7 @@ class StreamingProbe:
                         )
                     ):
                         content_received = True
+
                         ttft_ms = self._elapsed_ms(
                             start
                         )
@@ -446,13 +495,14 @@ class StreamingProbe:
                         total_latency_ms,
                         ttft_ms,
                         chunk_count,
+                        usage,
                     ),
                     evidence={
                         "http_status": http_status,
                         "model": self.model,
                         "content_type": content_type,
                         "content_received": content_received,
-                        "usage_available": usage_available,
+                        "usage_available": usage.available,
                         "terminal_event_seen": (
                             terminal_event_seen
                         ),
@@ -485,13 +535,14 @@ class StreamingProbe:
                         total_latency_ms,
                         ttft_ms,
                         chunk_count,
+                        usage,
                     ),
                     evidence={
                         "http_status": http_status,
                         "model": self.model,
                         "content_type": content_type,
                         "content_received": content_received,
-                        "usage_available": usage_available,
+                        "usage_available": usage.available,
                         "terminal_event_seen": (
                             terminal_event_seen
                         ),
@@ -509,7 +560,7 @@ class StreamingProbe:
             "model": self.model,
             "content_type": content_type,
             "content_received": content_received,
-            "usage_available": usage_available,
+            "usage_available": usage.available,
             "terminal_event_seen": terminal_event_seen,
         }
 
@@ -517,6 +568,7 @@ class StreamingProbe:
             total_latency_ms,
             ttft_ms,
             chunk_count,
+            usage,
         )
 
         if parser.has_pending_event:
