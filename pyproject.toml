@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Endpoint Doctor for OpenAI-compatible model APIs"
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+  "jsonschema>=4.26,<5",
+]
 license = "MIT"
 license-files = ["LICENSE"]
 keywords = ["api", "diagnostics", "llm", "endpoint"]

@@ -218,6 +218,37 @@ class DeepHandler(BaseHTTPRequestHandler):
 
             return
 
+        if (
+            payload.get("response_format", {})
+            .get("type")
+            == "json_schema"
+        ):
+            self.send_response(200)
+            self.send_header(
+                "Content-Type",
+                "application/json",
+            )
+            self.end_headers()
+
+            raw = {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                '{"name":"diagnostic",'
+                                '"value":42}'
+                            ),
+                        }
+                    }
+                ]
+            }
+
+            self.wfile.write(
+                json.dumps(raw).encode()
+            )
+            return
+
         # Ordinary non-stream Chat request.
         self.send_response(200)
         self.send_header(
@@ -292,6 +323,7 @@ class DeepRunnerTests(unittest.TestCase):
                 "chat",
                 "streaming",
                 "tool_calling",
+                "structured_output",
             ],
         )
 
@@ -313,6 +345,12 @@ class DeepRunnerTests(unittest.TestCase):
             result
             for result in results
             if result.name == "tool_calling"
+        )
+
+        structured = next(
+            result
+            for result in results
+            if result.name == "structured_output"
         )
 
         self.assertEqual(
@@ -364,10 +402,12 @@ class DeepRunnerTests(unittest.TestCase):
         # 1 x Chat POST
         # 1 x Streaming POST
         # 2 x Tool Calling POST
+        # 1 x Structured Output POST
         self.assertEqual(
             [call[0] for call in DeepHandler.calls],
             [
                 "GET",
+                "POST",
                 "POST",
                 "POST",
                 "POST",
@@ -381,6 +421,22 @@ class DeepRunnerTests(unittest.TestCase):
         )
 
         for call in DeepHandler.calls[1:]:
+            structured_payload = (
+                DeepHandler.calls[5][3]
+            )
+
+            self.assertEqual(
+                structured_payload[
+                    "response_format"
+                ]["type"],
+                "json_schema",
+            )
+
+            self.assertTrue(
+                structured_payload[
+                    "response_format"
+                ]["json_schema"]["strict"]
+            )
             self.assertEqual(
                 call[1],
                 "/v1/chat/completions",
@@ -450,6 +506,47 @@ class DeepRunnerTests(unittest.TestCase):
             ],
             "42",
         )
+
+        self.assertEqual(
+            structured.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertEqual(
+            structured.support,
+            SupportStatus.SUPPORTED,
+        )
+
+        self.assertEqual(
+            structured.evidence[
+                "outcome"
+            ],
+            "supported",
+        )
+
+        self.assertTrue(
+            structured.evidence[
+                "schema_validation_passed"
+            ],
+        )
+
+        self.assertEqual(
+            structured.metrics[
+                "request_count"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            len(DeepHandler.calls),
+            6,
+        )
+
+        for call in DeepHandler.calls[1:]:
+            self.assertEqual(
+                call[1],
+                "/v1/chat/completions",
+            )
 
     def test_basic_failure_blocks_billable_probes(self):
         results = run_deep_diagnostics(
@@ -572,13 +669,14 @@ class DeepRunnerTests(unittest.TestCase):
         # No second Tool request should occur.
         self.assertEqual(
             len(DeepHandler.calls),
-            4,
+            5,
         )
 
         self.assertEqual(
             [call[0] for call in DeepHandler.calls],
             [
                 "GET",
+                "POST",
                 "POST",
                 "POST",
                 "POST",
@@ -623,7 +721,7 @@ class DeepRunnerTests(unittest.TestCase):
         # Invalid first tool call must not trigger a second billable request.
         self.assertEqual(
             len(DeepHandler.calls),
-            4,
+            5,
         )
 
 if __name__ == "__main__":
