@@ -63,6 +63,43 @@ class ChatHandler(BaseHTTPRequestHandler):
                 }
             ).encode()
 
+        elif prefix == "usage":
+            raw = json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "OK",
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                        "total_tokens": 15,
+                    },
+                }
+            ).encode()
+
+        elif prefix == "partialusage":
+            raw = json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "OK",
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                    },
+                }
+            ).encode()
+
         elif prefix == "secret":
             raw = json.dumps(
                 {
@@ -286,6 +323,82 @@ class ChatProbeTests(unittest.TestCase):
         self.assertEqual(
             results[0].status,
             ResultStatus.PASS,
+        )
+
+    def test_complete_usage_is_added_to_metrics(self):
+        result = ChatProbe(
+            self.base + "/usage",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertTrue(
+            result.metrics["usage_available"]
+        )
+
+        self.assertEqual(
+            result.metrics["prompt_tokens"],
+            10,
+        )
+
+        self.assertEqual(
+            result.metrics["completion_tokens"],
+            5,
+        )
+
+        self.assertEqual(
+            result.metrics["total_tokens"],
+            15,
+        )
+
+    def test_partial_usage_is_not_estimated(self):
+        result = ChatProbe(
+            self.base + "/partialusage",
+            model="demo-model",
+        ).run()
+
+        self.assertTrue(
+            result.metrics["usage_available"]
+        )
+
+        self.assertEqual(
+            result.metrics["prompt_tokens"],
+            10,
+        )
+
+        self.assertEqual(
+            result.metrics["completion_tokens"],
+            5,
+        )
+
+        self.assertIsNone(
+            result.metrics["total_tokens"]
+        )
+
+    def test_missing_usage_is_reported_unavailable(self):
+        result = ChatProbe(
+            self.base + "/valid",
+            model="demo-model",
+        ).run()
+
+        self.assertFalse(
+            result.metrics["usage_available"]
+        )
+
+        self.assertIsNone(
+            result.metrics["prompt_tokens"]
+        )
+
+        self.assertIsNone(
+            result.metrics["completion_tokens"]
+        )
+
+        self.assertIsNone(
+            result.metrics["total_tokens"]
         )
 
 

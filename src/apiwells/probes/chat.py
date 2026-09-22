@@ -9,6 +9,7 @@ import urllib.request
 from .. import __version__
 from ..models import ProbeResult, ResultStatus, SupportStatus
 from ..transport import open_request
+from .usage import extract_usage
 
 
 RESPONSE_LIMIT = 2 * 1024 * 1024
@@ -152,6 +153,8 @@ class ChatProbe:
                 error_code="INVALID_JSON",
             )
 
+        usage = extract_usage(data)
+
         if not isinstance(data, dict) or "error" in data:
             return ProbeResult(
                 name="chat",
@@ -220,6 +223,7 @@ class ChatProbe:
             summary="Non-stream Chat Completions request succeeded.",
             metrics={
                 "total_latency_ms": total_latency_ms,
+                **usage.as_metrics(),
             },
             evidence={
                 "http_status": http_status,
