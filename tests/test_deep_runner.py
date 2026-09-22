@@ -75,6 +75,8 @@ class DeepHandler(BaseHTTPRequestHandler):
 
         payload = json.loads(body)
 
+        prefix = self.path.split("/")[1]
+
         DeepHandler.calls.append(
             (
                 "POST",
@@ -120,6 +122,44 @@ class DeepHandler(BaseHTTPRequestHandler):
                     ]
                 }
 
+            elif prefix == "toolunsupported":
+                raw = {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": (
+                                    "The result is 42."
+                                ),
+                            }
+                        }
+                    ]
+                }
+
+            elif prefix == "toolinvalid":
+                raw = {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call-1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "wrong_tool",
+                                            "arguments": (
+                                                '{"a":17,"b":25}'
+                                            ),
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                }
+
             else:
                 raw = {
                     "choices": [
@@ -148,7 +188,6 @@ class DeepHandler(BaseHTTPRequestHandler):
                 json.dumps(raw).encode()
             )
             return
-
         # Streaming request.
         if payload.get("stream"):
             self.send_response(200)
@@ -494,6 +533,98 @@ class DeepRunnerTests(unittest.TestCase):
             [],
         )
 
+    def test_deep_reports_tool_calling_unsupported(self):
+        results = run_deep_diagnostics(
+            self.base + "/toolunsupported",
+            model="demo-model",
+            timeout=1,
+            authentication_requested=False,
+        )
+
+        tool_result = next(
+            result
+            for result in results
+            if result.name == "tool_calling"
+        )
+
+        self.assertEqual(
+            tool_result.status,
+            ResultStatus.PARTIAL,
+        )
+
+        self.assertEqual(
+            tool_result.support,
+            SupportStatus.UNSUPPORTED,
+        )
+
+        self.assertEqual(
+            tool_result.error_code,
+            "FEATURE_UNSUPPORTED",
+        )
+
+        self.assertFalse(
+            tool_result.evidence[
+                "round_trip_completed"
+            ]
+        )
+
+        # GET models + Chat + Streaming + first Tool request.
+        # No second Tool request should occur.
+        self.assertEqual(
+            len(DeepHandler.calls),
+            4,
+        )
+
+        self.assertEqual(
+            [call[0] for call in DeepHandler.calls],
+            [
+                "GET",
+                "POST",
+                "POST",
+                "POST",
+            ],
+        )
+
+    def test_deep_reports_invalid_tool_call_failure(self):
+        results = run_deep_diagnostics(
+            self.base + "/toolinvalid",
+            model="demo-model",
+            timeout=1,
+            authentication_requested=False,
+        )
+
+        tool_result = next(
+            result
+            for result in results
+            if result.name == "tool_calling"
+        )
+
+        self.assertEqual(
+            tool_result.status,
+            ResultStatus.FAIL,
+        )
+
+        self.assertEqual(
+            tool_result.support,
+            SupportStatus.UNKNOWN,
+        )
+
+        self.assertEqual(
+            tool_result.error_code,
+            "TOOL_CALL_INVALID",
+        )
+
+        self.assertFalse(
+            tool_result.evidence[
+                "round_trip_completed"
+            ]
+        )
+
+        # Invalid first tool call must not trigger a second billable request.
+        self.assertEqual(
+            len(DeepHandler.calls),
+            4,
+        )
 
 if __name__ == "__main__":
     unittest.main()
