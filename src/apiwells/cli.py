@@ -8,11 +8,22 @@ import time
 
 from . import __version__
 from .config import normalize_endpoint
-from .models import ResultStatus
+from .models import (
+    ProbeResult,
+    ResultStatus,
+    SupportStatus,
+)
 from .probes import ChatProbe, ModelsProbe
 from .reporting import (
+    aggregate_overall_status,
+    build_json_report,
     redact_probe_result,
     redact_value,
+    render_console_report,
+)
+from .runner import (
+    run_basic_diagnostics,
+    run_deep_diagnostics,
 )
 
 endpoint = normalize_endpoint
@@ -253,6 +264,112 @@ def diagnose(
     )
 
 
+def _internal_error_result() -> ProbeResult:
+    """Return a safe public result for an unexpected internal failure."""
+
+    return ProbeResult(
+        name="internal",
+        status=ResultStatus.FAIL,
+        support=SupportStatus.UNKNOWN,
+        summary=(
+            "Endpoint Doctor encountered an internal error. "
+            "Sensitive details were suppressed."
+        ),
+        error_code="INTERNAL_ERROR",
+    )
+
+def _emit_v01_report(
+    results,
+    *,
+    key="",
+):
+    """Preserve v0.1 JSON compatibility contract."""
+
+    overall_status = aggregate_overall_status(
+        results
+    )
+
+    report = {
+        "schema_version": "1",
+        "apiwells_version": __version__,
+        "overall_status": overall_status.value,
+        "probes": [
+            {
+                "name": result.name,
+                "status": result.status.value,
+                "support": result.support.value,
+                "summary": result.summary,
+                "metrics": result.metrics,
+                "evidence": result.evidence,
+                "error_code": result.error_code,
+            }
+            for result in results
+        ],
+        "ok": (
+            overall_status
+            is ResultStatus.PASS
+        ),
+    }
+
+    safe_report = redact_value(
+        report,
+        secrets=(key,),
+    )
+
+    print(
+        json.dumps(
+            safe_report,
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+    )
+
+    return (
+        0
+        if report["ok"]
+        else 1
+    )
+
+def _emit_v02_report(
+    results,
+    *,
+    key="",
+    json_output=False,
+):
+    """Render v0.2 diagnostic results and return the CLI exit code."""
+
+    overall_status = aggregate_overall_status(
+        results
+    )
+
+    if json_output:
+        report = build_json_report(
+            results,
+            secrets=(key,),
+        )
+
+        print(
+            json.dumps(
+                report,
+                ensure_ascii=True,
+                allow_nan=False,
+            )
+        )
+    else:
+        print(
+            render_console_report(
+                results,
+                secrets=(key,),
+            )
+        )
+
+    return (
+        0
+        if overall_status is ResultStatus.PASS
+        else 1
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="ApiWells Endpoint Doctor: one diagnostic request, no retries.")
     parser.add_argument("--version", action="version", version="apiwells " + __version__)
@@ -262,48 +379,195 @@ def main(argv=None):
     p.add_argument("--api-key-env", default="APIWELLS_API_KEY", help="Environment variable containing the key")
     p.add_argument("--anonymous", action="store_true", help="Send no authentication header")
     p.add_argument("--chat", action="store_true", help="Opt into one potentially billable chat request")
+    p.add_argument(
+        "--deep",
+        action="store_true",
+        help=(
+            "Run full potentially billable capability diagnostics; "
+            "requires --model"
+        ),
+    )
     p.add_argument("--model", help="Exact model ID; required with --chat")
     p.add_argument("--max-tokens", type=int, default=8)
     p.add_argument("--timeout", type=float, default=15, help="Socket operation timeout in seconds, not total wall-clock deadline")
     p.add_argument("--allow-http", action="store_true", help="Explicitly allow unencrypted remote HTTP")
     p.add_argument("--use-env-proxy", action="store_true", help="Opt into system/environment proxy settings")
     p.add_argument("--json", action="store_true", help="Print sanitized JSON to stdout")
+    p.add_argument(
+        "--v2-json",
+        action="store_true",
+        help="Print v0.2 structured diagnostic JSON report",
+    )
     args = parser.parse_args(argv)
-    if args.chat != (args.model is not None):
-        p.error("Use --chat and --model together.")
+    if args.chat and args.deep:
+        p.error(
+            "Use either --chat or --deep, not both."
+        )
+
+    if (
+        (args.chat or args.deep)
+        and args.model is None
+    ):
+        p.error(
+            "--chat and --deep require --model."
+        )
+
+    if (
+        args.model is not None
+        and not (args.chat or args.deep)
+    ):
+        p.error(
+            "--model requires --chat or --deep."
+        )
     key = "" if args.anonymous else os.environ.get(args.api_key_env, "")
     if not args.anonymous and not key:
         p.error("API key environment variable is missing/empty; set it or use --anonymous.")
     try:
-        result = diagnose(args.base_url, key, args.model, args.timeout, args.max_tokens,
-                          args.allow_http, args.use_env_proxy)
+        endpoint(
+            args.base_url,
+            args.allow_http,
+        )
+
+        if (
+            not math.isfinite(args.timeout)
+            or args.timeout <= 0
+            or args.timeout > 300
+        ):
+            raise ValueError(
+                "Timeout must be finite and in "
+                "(0, 300] seconds."
+            )
+
+        if (
+            not isinstance(args.max_tokens, int)
+            or not 1 <= args.max_tokens <= 4096
+        ):
+            raise ValueError(
+                "max-tokens must be an integer "
+                "from 1 to 4096."
+            )
+
+        if any(
+            ord(c) < 33 or ord(c) > 126
+            for c in key
+        ):
+            raise ValueError(
+                "API key must contain printable "
+                "ASCII without spaces."
+            )
+
     except (ValueError, UnicodeError):
-        p.error("Invalid configuration. Check URL, port, HTTPS, key characters, model, timeout and token limit.")
+        p.error(
+            "Invalid configuration. Check URL, port, HTTPS, "
+            "key characters, model, timeout and token limit."
+        )
+
+    # Preserve the v0.1 single-request --chat compatibility path.
+    if args.chat:
+        try:
+            result = diagnose(
+            args.base_url,
+            key,
+            args.model,
+            args.timeout,
+            args.max_tokens,
+            args.allow_http,
+            args.use_env_proxy,
+        )
+
+        except (ValueError, UnicodeError):
+            p.error(
+                "Invalid configuration. Check URL, port, HTTPS, "
+                "key characters, model, timeout and token limit."
+            )
+        except Exception:
+            result = {
+                "schema_version": 1,
+                "version": __version__,
+                "check": "chat",
+                "ok": False,
+                "http_status": None,
+                "category": "internal_error",
+                "elapsed_ms": 0.0,
+                "hint": (
+                    "Endpoint Doctor encountered an internal "
+                    "error. Sensitive details were suppressed."
+                ),
+            }
+
+        if args.json:
+            print(
+                json.dumps(
+                    result,
+                    ensure_ascii=True,
+                    allow_nan=False,
+                )
+            )
+        else:
+            print(
+                "{} {} HTTP={} {:.2f}ms [{}]".format(
+                    "PASS" if result["ok"] else "FAIL",
+                    result["check"],
+                    result["http_status"],
+                    result["elapsed_ms"],
+                    result["category"],
+                )
+            )
+            print(result["hint"])
+
+        return 0 if result["ok"] else 1
+
+    try:
+        if args.deep:
+            results = run_deep_diagnostics(
+                base_url=args.base_url,
+                model=args.model,
+                key=key,
+                timeout=args.timeout,
+                max_tokens=args.max_tokens,
+                allow_http=args.allow_http,
+                use_env_proxy=args.use_env_proxy,
+                authentication_requested=(
+                    not args.anonymous
+                ),
+            )
+        else:
+            results = run_basic_diagnostics(
+                base_url=args.base_url,
+                key=key,
+                timeout=args.timeout,
+                allow_http=args.allow_http,
+                use_env_proxy=args.use_env_proxy,
+                authentication_requested=(
+                    not args.anonymous
+                ),
+            )
+
+    except (ValueError, UnicodeError):
+        p.error(
+            "Invalid configuration. Check URL, port, HTTPS, "
+            "key characters, model, timeout and token limit."
+        )
     except Exception:
-        result = {
-            "schema_version": 1,
-            "version": __version__,
-            "check": (
-                "chat"
-                if args.model is not None
-                else "models"
-            ),
-            "ok": False,
-            "http_status": None,
-            "category": "internal_error",
-            "elapsed_ms": 0.0,
-            "hint": (
-                "Endpoint Doctor encountered an internal "
-                "error. Sensitive details were suppressed."
-            ),
-        }
+        results = [
+            _internal_error_result()
+        ]
+
+    if args.v2_json:
+        return _emit_v02_report(
+            results,
+            key=key,
+            json_output=True,
+        )
+
     if args.json:
-        print(json.dumps(result, ensure_ascii=True, allow_nan=False))
-    else:
-        print("{} {} HTTP={} {:.2f}ms [{}]".format(
-            "PASS" if result["ok"] else "FAIL", result["check"],
-            result["http_status"], result["elapsed_ms"], result["category"]))
-        print(result["hint"])
-        if "model_count" in result:
-            print("Models returned:", result["model_count"])
-    return 0 if result["ok"] else 1
+        return _emit_v01_report(
+            results,
+            key=key,
+        )
+
+    return _emit_v02_report(
+        results,
+        key=key,
+        json_output=False,
+    )
