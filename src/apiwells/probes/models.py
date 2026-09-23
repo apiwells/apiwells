@@ -5,6 +5,7 @@ import urllib.request
 
 from .. import __version__
 from ..models import ProbeResult, ResultStatus, SupportStatus
+from ..models.errors import classify_http_status
 from ..transport import HTTPObservation
 
 
@@ -121,6 +122,9 @@ class ModelsProbe:
                 evidence={
                     "http_status": http_status,
                 },
+                error_code=classify_http_status(
+                    http_status
+                ),
             )
 
         if observed.response_too_large:

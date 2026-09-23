@@ -218,6 +218,11 @@ class ModelsProbeTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            result.error_code,
+            "UPSTREAM_5XX",
+        )
+
+        self.assertEqual(
             len(ModelsHandler.calls),
             1,
         )

@@ -12,6 +12,7 @@ from ..models import (
     ResultStatus,
     SupportStatus,
 )
+from ..models.errors import classify_http_status
 from ..transport import open_request
 
 
@@ -137,7 +138,9 @@ class ToolCallingProbe:
                     return (
                         http_status,
                         None,
-                        None,
+                        classify_http_status(
+                            http_status
+                        ),
                     )
 
                 raw = response.read(

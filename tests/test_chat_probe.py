@@ -270,6 +270,11 @@ class ChatProbeTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            result.error_code,
+            "UPSTREAM_5XX",
+        )
+
+        self.assertEqual(
             len(ChatHandler.calls),
             1,
         )

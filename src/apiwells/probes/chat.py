@@ -8,6 +8,7 @@ import urllib.request
 
 from .. import __version__
 from ..models import ProbeResult, ResultStatus, SupportStatus
+from ..models.errors import classify_http_status
 from ..transport import open_request
 from .usage import extract_usage
 
@@ -94,6 +95,9 @@ class ChatProbe:
                             "http_status": http_status,
                             "model": self.model,
                         },
+                        error_code=classify_http_status(
+                            http_status
+                        ),
                     )
 
                 raw = response.read(RESPONSE_LIMIT + 1)

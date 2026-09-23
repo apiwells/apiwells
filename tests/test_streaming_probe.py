@@ -639,6 +639,11 @@ class StreamingProbeTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            result.error_code,
+            "UPSTREAM_5XX",
+        )
+
+        self.assertEqual(
             len(StreamingHandler.calls),
             1,
         )

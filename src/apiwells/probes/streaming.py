@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from .. import __version__
 from ..models import ProbeResult, ResultStatus, SupportStatus
+from ..models.errors import classify_http_status
 from ..transport import (
     StreamReadError,
     iter_response_lines,
@@ -339,6 +340,9 @@ class StreamingProbe:
                         "usage_available": False,
                         "terminal_event_seen": False,
                     },
+                     error_code=classify_http_status(
+                        http_status
+                    ),
                 )
 
             try:

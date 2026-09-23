@@ -458,6 +458,11 @@ class ToolCallingProbeTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            result.error_code,
+            "UPSTREAM_5XX",
+        )
+
+        self.assertEqual(
             len(ToolHandler.calls),
             1,
         )

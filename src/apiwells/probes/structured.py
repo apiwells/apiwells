@@ -13,6 +13,7 @@ from ..models import (
     ResultStatus,
     SupportStatus,
 )
+from ..models.errors import classify_http_status
 from ..transport import observe_request
 
 
@@ -280,28 +281,9 @@ class StructuredOutputProbe:
     def _http_error_code(
         http_status: int | None,
     ) -> str | None:
-        if http_status is None:
-            return None
-
-        if http_status == 401:
-            return "AUTH_INVALID"
-
-        if http_status == 403:
-            return "PERMISSION_DENIED"
-
-        if http_status == 404:
-            return "NOT_FOUND"
-
-        if http_status == 429:
-            return "RATE_LIMITED"
-
-        if 500 <= http_status < 600:
-            return "UPSTREAM_5XX"
-
-        if 300 <= http_status < 400:
-            return "HTTP_REDIRECT"
-
-        return None
+        return classify_http_status(
+            http_status
+        )
 
     def _invalid_implementation(
         self,
