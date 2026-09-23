@@ -279,6 +279,24 @@ def main(argv=None):
                           args.allow_http, args.use_env_proxy)
     except (ValueError, UnicodeError):
         p.error("Invalid configuration. Check URL, port, HTTPS, key characters, model, timeout and token limit.")
+    except Exception:
+        result = {
+            "schema_version": 1,
+            "version": __version__,
+            "check": (
+                "chat"
+                if args.model is not None
+                else "models"
+            ),
+            "ok": False,
+            "http_status": None,
+            "category": "internal_error",
+            "elapsed_ms": 0.0,
+            "hint": (
+                "Endpoint Doctor encountered an internal "
+                "error. Sensitive details were suppressed."
+            ),
+        }
     if args.json:
         print(json.dumps(result, ensure_ascii=True, allow_nan=False))
     else:
