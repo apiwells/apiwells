@@ -152,7 +152,7 @@ class StreamingProbe:
     def _has_meaningful_output(
         chunk: dict,
     ) -> bool:
-        """Return whether a chunk contains actual model output."""
+        """Return whether a chunk contains final assistant output."""
 
         choices = chunk.get("choices")
 
@@ -176,6 +176,42 @@ class StreamingProbe:
             refusal = delta.get("refusal")
 
             if isinstance(refusal, str) and refusal != "":
+                return True
+
+        return False
+
+    @classmethod
+    def _has_model_output(
+        cls,
+        chunk: dict,
+    ) -> bool:
+        """Return whether a chunk contains any actual model output."""
+
+        if cls._has_meaningful_output(chunk):
+            return True
+
+        choices = chunk.get("choices")
+
+        if not isinstance(choices, list):
+            return False
+
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+
+            delta = choice.get("delta")
+
+            if not isinstance(delta, dict):
+                continue
+
+            reasoning_content = delta.get(
+                "reasoning_content"
+            )
+
+            if (
+                isinstance(reasoning_content, str)
+                and reasoning_content != ""
+            ):
                 return True
 
         return False
@@ -298,6 +334,7 @@ class StreamingProbe:
 
         chunk_count = 0
         ttft_ms: float | None = None
+        model_output_seen = False
         content_received = False
 
         usage = UsageObservation(
@@ -387,7 +424,7 @@ class StreamingProbe:
                             status=ResultStatus.FAIL,
                             support=(
                                 SupportStatus.SUPPORTED
-                                if content_received
+                                if model_output_seen
                                 else SupportStatus.UNKNOWN
                             ),
                             summary=(
@@ -423,7 +460,7 @@ class StreamingProbe:
                             status=ResultStatus.FAIL,
                             support=(
                                 SupportStatus.SUPPORTED
-                                if content_received
+                                if model_output_seen
                                 else SupportStatus.UNKNOWN
                             ),
                             summary=(
@@ -461,16 +498,24 @@ class StreamingProbe:
                     )
 
                     if (
+                        not model_output_seen
+                        and self._has_model_output(
+                            chunk
+                        )
+                    ):
+                        model_output_seen = True
+
+                        ttft_ms = self._elapsed_ms(
+                            start
+                        )
+
+                    if (
                         not content_received
                         and self._has_meaningful_output(
                             chunk
                         )
                     ):
                         content_received = True
-
-                        ttft_ms = self._elapsed_ms(
-                            start
-                        )
 
                 if completion_time is None:
                     completion_time = time.monotonic()
@@ -488,7 +533,7 @@ class StreamingProbe:
                     status=ResultStatus.FAIL,
                     support=(
                         SupportStatus.SUPPORTED
-                        if content_received
+                        if model_output_seen
                         else SupportStatus.UNKNOWN
                     ),
                     summary=(
@@ -528,7 +573,7 @@ class StreamingProbe:
                     status=ResultStatus.FAIL,
                     support=(
                         SupportStatus.SUPPORTED
-                        if content_received
+                        if model_output_seen
                         else SupportStatus.UNKNOWN
                     ),
                     summary=(
@@ -581,7 +626,7 @@ class StreamingProbe:
                 status=ResultStatus.FAIL,
                 support=(
                     SupportStatus.SUPPORTED
-                    if content_received
+                    if model_output_seen
                     else SupportStatus.UNKNOWN
                 ),
                 summary=(
@@ -630,7 +675,7 @@ class StreamingProbe:
                 support=SupportStatus.SUPPORTED,
                 summary=(
                     "The SSE stream completed without "
-                    "meaningful model output."
+                    "final assistant output."
                 ),
                 metrics=metrics,
                 evidence=evidence,

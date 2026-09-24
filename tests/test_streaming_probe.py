@@ -326,6 +326,39 @@ class StreamingHandler(BaseHTTPRequestHandler):
             b'{"delta":{"content":"O"}}]}\n'
         )
 
+        reasoning_event = (
+            b'data: {"choices":['
+            b'{"delta":{"reasoning_content":"Thinking"}}]}\n'
+        )
+
+        if prefix == "reasoning":
+            self._write_lines(
+                [
+                    role_event,
+                    b"\n",
+                    reasoning_event,
+                    b"\n",
+                    content_event,
+                    b"\n",
+                    b"data: [DONE]\n",
+                    b"\n",
+                ]
+            )
+            return
+
+        if prefix == "reasoningonly":
+            self._write_lines(
+                [
+                    role_event,
+                    b"\n",
+                    reasoning_event,
+                    b"\n",
+                    b"data: [DONE]\n",
+                    b"\n",
+                ]
+            )
+            return
+
         lines = [
             b"data:\n",
             b"\n",
@@ -490,6 +523,105 @@ class StreamingProbeTests(unittest.TestCase):
         self.assertEqual(
             StreamingHandler.calls[-1][2],
             "text/event-stream",
+        )
+
+    def test_reasoning_content_sets_ttft_before_final_content(self):
+        with patch(
+            "apiwells.probes.streaming.time.monotonic",
+            side_effect=[
+                10.0,
+                10.10,
+                10.90,
+            ],
+        ):
+            result = StreamingProbe(
+                self.base + "/reasoning",
+                model="demo-model",
+            ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        self.assertEqual(
+            result.support,
+            SupportStatus.SUPPORTED,
+        )
+
+        self.assertEqual(
+            result.metrics["ttft_ms"],
+            100.0,
+        )
+
+        self.assertEqual(
+            result.metrics["total_latency_ms"],
+            900.0,
+        )
+
+        self.assertEqual(
+            result.metrics["chunk_count"],
+            3,
+        )
+
+        self.assertTrue(
+            result.evidence["content_received"]
+        )
+
+        self.assertTrue(
+            result.evidence["terminal_event_seen"]
+        )
+
+    def test_reasoning_only_stream_has_ttft_but_fails_final_output(self):
+        with patch(
+            "apiwells.probes.streaming.time.monotonic",
+            side_effect=[
+                20.0,
+                20.15,
+                20.70,
+            ],
+        ):
+            result = StreamingProbe(
+                self.base + "/reasoningonly",
+                model="demo-model",
+            ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.FAIL,
+        )
+
+        self.assertEqual(
+            result.support,
+            SupportStatus.SUPPORTED,
+        )
+
+        self.assertEqual(
+            result.error_code,
+            "INVALID_SCHEMA",
+        )
+
+        self.assertEqual(
+            result.metrics["ttft_ms"],
+            150.0,
+        )
+
+        self.assertEqual(
+            result.metrics["total_latency_ms"],
+            700.0,
+        )
+
+        self.assertEqual(
+            result.metrics["chunk_count"],
+            2,
+        )
+
+        self.assertFalse(
+            result.evidence["content_received"]
+        )
+
+        self.assertTrue(
+            result.evidence["terminal_event_seen"]
         )
 
     def test_default_max_tokens_uses_reasoning_safe_budget(self):
