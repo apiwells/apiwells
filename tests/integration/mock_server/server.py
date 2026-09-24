@@ -1,4 +1,4 @@
-"""Unified OpenAI-compatible mock provider for ED-030."""
+"""Unified OpenAI-compatible mock provider."""
 
 import json
 
@@ -259,6 +259,159 @@ def register_structured_json_object_only_route(
         method="POST",
     ).respond_with_handler(
         handler
+    )
+
+    return state
+
+
+def register_basic_flow_routes(httpserver):
+    """Register routes for the ED-030.2 Basic full-flow test.
+
+    The returned state allows the integration test to prove that
+    Basic mode performs exactly one /models request and does not
+    execute any billable chat/capability request.
+    """
+
+    state = {
+        "models_request_count": 0,
+        "chat_request_count": 0,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        return _json_response(
+            models_response()
+        )
+
+    def unexpected_chat_handler(request):
+        state["chat_request_count"] += 1
+
+        return _json_response(
+            {
+                "error": {
+                    "message": (
+                        "Basic diagnostics must not execute "
+                        "chat completions."
+                    )
+                }
+            },
+            status=500,
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        unexpected_chat_handler
+    )
+
+    return state
+
+
+def register_basic_auth_failure_routes(httpserver):
+    """Return HTTP 401 from /models for Basic full-flow testing."""
+
+    state = {
+        "models_request_count": 0,
+        "chat_request_count": 0,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        return _json_response(
+            {
+                "error": {
+                    "message": "invalid API key",
+                }
+            },
+            status=401,
+        )
+
+    def unexpected_chat_handler(request):
+        state["chat_request_count"] += 1
+
+        return _json_response(
+            {
+                "error": {
+                    "message": (
+                        "Basic diagnostics must not execute "
+                        "chat completions."
+                    )
+                }
+            },
+            status=500,
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        unexpected_chat_handler
+    )
+
+    return state
+
+
+def register_basic_invalid_json_routes(httpserver):
+    """Return HTTP 200 with an invalid /models JSON body."""
+
+    state = {
+        "models_request_count": 0,
+        "chat_request_count": 0,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        return Response(
+            "<html>not-json</html>",
+            status=200,
+            content_type="application/json",
+        )
+
+    def unexpected_chat_handler(request):
+        state["chat_request_count"] += 1
+
+        return _json_response(
+            {
+                "error": {
+                    "message": (
+                        "Basic diagnostics must not execute "
+                        "chat completions."
+                    )
+                }
+            },
+            status=500,
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        unexpected_chat_handler
     )
 
     return state
