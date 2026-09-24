@@ -1,6 +1,7 @@
 """Unified OpenAI-compatible mock provider."""
 
 import json
+import time
 
 from werkzeug.wrappers import Response
 
@@ -427,16 +428,27 @@ def register_deep_flow_routes(httpserver):
         "tool_first_request_count": 0,
         "tool_second_request_count": 0,
         "structured_request_count": 0,
+        "authorization_headers": [],
     }
 
     def models_handler(request):
         state["models_request_count"] += 1
+        state["authorization_headers"].append(
+            request.headers.get(
+                "Authorization"
+            )
+        )
 
         return _json_response(
             models_response()
         )
 
     def chat_handler(request):
+        state["authorization_headers"].append(
+            request.headers.get(
+                "Authorization"
+            )
+        )
         payload = request.get_json(
             silent=True
         ) or {}
@@ -496,6 +508,331 @@ def register_deep_flow_routes(httpserver):
         method="POST",
     ).respond_with_handler(
         chat_handler
+    )
+
+    return state
+
+
+def register_basic_secret_error_routes(
+    httpserver,
+    *,
+    status_code: int,
+    secret: str,
+):
+    """Return a /models error body that deliberately echoes the secret."""
+
+    state = {
+        "models_request_count": 0,
+        "chat_request_count": 0,
+        "authorization": None,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        state["authorization"] = (
+            request.headers.get(
+                "Authorization"
+            )
+        )
+
+        return _json_response(
+            {
+                "error": {
+                    "message": (
+                        "provider echoed credential "
+                        + secret
+                    )
+                }
+            },
+            status=status_code,
+        )
+
+    def unexpected_chat_handler(request):
+        state["chat_request_count"] += 1
+
+        return _json_response(
+            {
+                "error": {
+                    "message": (
+                        "Basic diagnostics must not "
+                        "execute chat completions."
+                    )
+                }
+            },
+            status=500,
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        unexpected_chat_handler
+    )
+
+    return state
+
+
+def register_basic_secret_invalid_json_routes(
+    httpserver,
+    *,
+    secret: str,
+):
+    """Return HTTP 200 with invalid JSON containing the secret."""
+
+    state = {
+        "models_request_count": 0,
+        "chat_request_count": 0,
+        "authorization": None,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        state["authorization"] = (
+            request.headers.get(
+                "Authorization"
+            )
+        )
+
+        return Response(
+            (
+                "not-json provider-body "
+                + secret
+            ),
+            status=200,
+            content_type="application/json",
+        )
+
+    def unexpected_chat_handler(request):
+        state["chat_request_count"] += 1
+
+        return _json_response(
+            {
+                "error": {
+                    "message": "unexpected chat"
+                }
+            },
+            status=500,
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        unexpected_chat_handler
+    )
+
+    return state
+
+
+def register_basic_timeout_routes(
+    httpserver,
+    *,
+    delay: float = 0.2,
+):
+    """Delay /models long enough to trigger the Doctor timeout."""
+
+    state = {
+        "models_request_count": 0,
+        "chat_request_count": 0,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        time.sleep(delay)
+
+        return _json_response(
+            models_response()
+        )
+
+    def unexpected_chat_handler(request):
+        state["chat_request_count"] += 1
+
+        return _json_response(
+            {
+                "error": {
+                    "message": "unexpected chat"
+                }
+            },
+            status=500,
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        unexpected_chat_handler
+    )
+
+    return state
+
+
+def register_models_status_route(
+    httpserver,
+    *,
+    status_code: int,
+):
+    """Return a controlled HTTP status from /v1/models."""
+
+    state = {
+        "models_request_count": 0,
+        "redirect_target_count": 0,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        headers = {}
+
+        if 300 <= status_code < 400:
+            headers["Location"] = (
+                "/v1/redirect-target"
+            )
+
+        return Response(
+            json.dumps(
+                {
+                    "error": {
+                        "message": (
+                            "mock models status "
+                            f"{status_code}"
+                        )
+                    }
+                }
+            ),
+            status=status_code,
+            content_type="application/json",
+            headers=headers,
+        )
+
+    def redirect_target_handler(request):
+        state["redirect_target_count"] += 1
+
+        return _json_response(
+            models_response()
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    if 300 <= status_code < 400:
+        httpserver.expect_request(
+            "/v1/redirect-target",
+            method="GET",
+        ).respond_with_handler(
+            redirect_target_handler
+        )
+
+    return state
+
+
+def register_invalid_tool_arguments_route(
+    httpserver,
+):
+    """Return a tool call whose arguments violate the tool schema."""
+
+    state = {
+        "request_count": 0,
+    }
+
+    def handler(request):
+        state["request_count"] += 1
+
+        return _json_response(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "add_numbers",
+                                        "arguments": (
+                                            '{"a":17}'
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        handler
+    )
+
+    return state
+
+
+def register_invalid_structured_schema_route(
+    httpserver,
+):
+    """Accept json_schema but return content that violates it."""
+
+    state = {
+        "request_count": 0,
+    }
+
+    def handler(request):
+        state["request_count"] += 1
+
+        return _json_response(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                '{"name":"diagnostic",'
+                                '"value":"42"}'
+                            ),
+                        }
+                    }
+                ]
+            }
+        )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        handler
     )
 
     return state
