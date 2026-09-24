@@ -415,3 +415,87 @@ def register_basic_invalid_json_routes(httpserver):
     )
 
     return state
+
+
+def register_deep_flow_routes(httpserver):
+    """Register and observe the Deep happy path."""
+
+    state = {
+        "models_request_count": 0,
+        "chat_request_count": 0,
+        "streaming_request_count": 0,
+        "tool_first_request_count": 0,
+        "tool_second_request_count": 0,
+        "structured_request_count": 0,
+    }
+
+    def models_handler(request):
+        state["models_request_count"] += 1
+
+        return _json_response(
+            models_response()
+        )
+
+    def chat_handler(request):
+        payload = request.get_json(
+            silent=True
+        ) or {}
+
+        if payload.get("stream") is True:
+            state[
+                "streaming_request_count"
+            ] += 1
+
+        elif isinstance(
+            payload.get("response_format"),
+            dict,
+        ):
+            state[
+                "structured_request_count"
+            ] += 1
+
+        elif "tools" in payload:
+            messages = payload.get(
+                "messages",
+                [],
+            )
+
+            is_second_request = any(
+                isinstance(message, dict)
+                and message.get("role") == "tool"
+                for message in messages
+            )
+
+            if is_second_request:
+                state[
+                    "tool_second_request_count"
+                ] += 1
+            else:
+                state[
+                    "tool_first_request_count"
+                ] += 1
+
+        else:
+            state[
+                "chat_request_count"
+            ] += 1
+
+        return _chat_completions_handler(
+            request
+        )
+
+    httpserver.expect_request(
+        "/v1/models",
+        method="GET",
+    ).respond_with_handler(
+        models_handler
+    )
+
+    httpserver.expect_request(
+        "/v1/chat/completions",
+        method="POST",
+    ).respond_with_handler(
+        chat_handler
+    )
+
+    return state
