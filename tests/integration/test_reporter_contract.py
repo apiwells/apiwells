@@ -304,7 +304,7 @@ def test_reporters_agree_on_real_capability_partial(
 
     assert (
         tool_result.support
-        is SupportStatus.UNSUPPORTED
+        is SupportStatus.UNKNOWN
     )
 
     results = [
@@ -339,7 +339,7 @@ def test_reporters_agree_on_real_capability_partial(
 
     assert "Tool Calling" in console_report
     assert "PARTIAL" in console_report
-    assert "UNSUPPORTED" in console_report
+    assert "UNKNOWN" in console_report
 
     assert (
         json_report["overall_status"]
@@ -367,12 +367,12 @@ def test_reporters_agree_on_real_capability_partial(
 
     assert (
         tool_probe["support"]
-        == "UNSUPPORTED"
+        == "UNKNOWN"
     )
 
     assert (
         tool_probe["error_code"]
-        == "FEATURE_UNSUPPORTED"
+        == "TOOL_CALL_INVALID"
     )
 
     assert results == original_results

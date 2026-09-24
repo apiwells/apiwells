@@ -651,12 +651,12 @@ class DeepRunnerTests(unittest.TestCase):
 
         self.assertEqual(
             tool_result.support,
-            SupportStatus.UNSUPPORTED,
+            SupportStatus.UNKNOWN,
         )
 
         self.assertEqual(
             tool_result.error_code,
-            "FEATURE_UNSUPPORTED",
+            "TOOL_CALL_INVALID",
         )
 
         self.assertFalse(

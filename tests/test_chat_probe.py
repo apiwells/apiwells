@@ -200,6 +200,26 @@ class ChatProbeTests(unittest.TestCase):
             result.metrics,
         )
 
+    def test_default_max_tokens_uses_reasoning_safe_budget(self):
+        result = ChatProbe(
+            self.base + "/valid",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        body = json.loads(
+            ChatHandler.calls[-1][2]
+        )
+
+        self.assertEqual(
+            body["max_tokens"],
+            512,
+        )
+
     def test_invalid_json_fails(self):
         result = ChatProbe(
             self.base + "/invalid",

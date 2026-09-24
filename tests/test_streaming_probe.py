@@ -492,6 +492,26 @@ class StreamingProbeTests(unittest.TestCase):
             "text/event-stream",
         )
 
+    def test_default_max_tokens_uses_reasoning_safe_budget(self):
+        result = StreamingProbe(
+            self.base + "/valid",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PASS,
+        )
+
+        body = json.loads(
+            StreamingHandler.calls[-1][3]
+        )
+
+        self.assertEqual(
+            body["max_tokens"],
+            512,
+        )
+
     def test_non_sse_json_is_reported_unsupported(self):
         result = StreamingProbe(
             self.base + "/json",

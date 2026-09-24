@@ -240,7 +240,7 @@ class ToolCallingProbe:
             return (
                 None,
                 None,
-                "FEATURE_UNSUPPORTED",
+                "TOOL_CALL_NOT_OBSERVED",
             )
 
         if len(tool_calls) != 1:
@@ -398,12 +398,6 @@ class ToolCallingProbe:
             "tools": [
                 self.TOOL_DEFINITION,
             ],
-            "tool_choice": {
-                "type": "function",
-                "function": {
-                    "name": self.TOOL_NAME,
-                },
-            },
             "max_tokens": self.max_tokens,
             "stream": False,
         }
@@ -528,6 +522,31 @@ class ToolCallingProbe:
                     "round_trip_completed": False,
                 },
                 error_code="FEATURE_UNSUPPORTED",
+            )
+
+        if validation_error == "TOOL_CALL_NOT_OBSERVED":
+            return ProbeResult(
+                name="tool_calling",
+                status=ResultStatus.PARTIAL,
+                support=SupportStatus.UNKNOWN,
+                summary=(
+                    "The endpoint accepted the Tool Calling "
+                    "request, but no tool call was observed."
+                ),
+                metrics={
+                    "total_latency_ms": self._elapsed_ms(
+                        start
+                    ),
+                    "request_count": 1,
+                },
+                evidence={
+                    "model": self.model,
+                    "first_http_status": (
+                        first_http_status
+                    ),
+                    "round_trip_completed": False,
+                },
+                error_code="TOOL_CALL_INVALID",
             )
 
         if validation_error is not None:

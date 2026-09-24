@@ -114,7 +114,7 @@ def run_deep_diagnostics(
     model: str,
     key: str = "",
     timeout: float = 15.0,
-    max_tokens: int = 8,
+    max_tokens: int = 512,
     allow_http: bool = False,
     use_env_proxy: bool = False,
     authentication_requested: bool = True,

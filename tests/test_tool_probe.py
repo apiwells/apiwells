@@ -306,11 +306,9 @@ class ToolCallingProbeTests(unittest.TestCase):
             "add_numbers",
         )
 
-        self.assertEqual(
-            first_payload[
-                "tool_choice"
-            ]["function"]["name"],
-            "add_numbers",
+        self.assertNotIn(
+            "tool_choice",
+            first_payload,
         )
 
         tool_messages = [
@@ -341,7 +339,7 @@ class ToolCallingProbeTests(unittest.TestCase):
             "42",
         )
 
-    def test_missing_tool_call_is_unsupported(self):
+    def test_missing_tool_call_keeps_support_unknown(self):
         result = ToolCallingProbe(
             self.base + "/unsupported",
             model="demo-model",
@@ -354,12 +352,12 @@ class ToolCallingProbeTests(unittest.TestCase):
 
         self.assertEqual(
             result.support,
-            SupportStatus.UNSUPPORTED,
+            SupportStatus.UNKNOWN,
         )
 
         self.assertEqual(
             result.error_code,
-            "FEATURE_UNSUPPORTED",
+            "TOOL_CALL_INVALID",
         )
 
         self.assertEqual(

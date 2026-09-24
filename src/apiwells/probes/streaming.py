@@ -107,7 +107,7 @@ class StreamingProbe:
         model: str,
         key: str = "",
         timeout: float = 15.0,
-        max_tokens: int = 8,
+        max_tokens: int = 512,
         use_env_proxy: bool = False,
     ) -> None:
         if not isinstance(model, str) or not model.strip():

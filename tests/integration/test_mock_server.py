@@ -276,12 +276,12 @@ def test_tool_unsupported_against_mock_provider(
 
     assert (
         result.support
-        == SupportStatus.UNSUPPORTED
+        == SupportStatus.UNKNOWN
     )
 
     assert (
         result.error_code
-        == "FEATURE_UNSUPPORTED"
+        == "TOOL_CALL_INVALID"
     )
 
     assert result.metrics["request_count"] == 1

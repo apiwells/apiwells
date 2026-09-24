@@ -388,7 +388,15 @@ def main(argv=None):
         ),
     )
     p.add_argument("--model", help="Exact model ID; required with --chat")
-    p.add_argument("--max-tokens", type=int, default=8)
+    p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,
+        help=(
+            "Maximum generated tokens; defaults to 8 for "
+            "--chat and 512 for --deep"
+        ),
+    )
     p.add_argument("--timeout", type=float, default=15, help="Socket operation timeout in seconds, not total wall-clock deadline")
     p.add_argument("--allow-http", action="store_true", help="Explicitly allow unencrypted remote HTTP")
     p.add_argument("--use-env-proxy", action="store_true", help="Opt into system/environment proxy settings")
@@ -422,6 +430,13 @@ def main(argv=None):
     key = "" if args.anonymous else os.environ.get(args.api_key_env, "")
     if not args.anonymous and not key:
         p.error("API key environment variable is missing/empty; set it or use --anonymous.")
+
+    effective_max_tokens = (
+        args.max_tokens
+        if args.max_tokens is not None
+        else (512 if args.deep else 8)
+    )
+
     try:
         endpoint(
             args.base_url,
@@ -439,8 +454,8 @@ def main(argv=None):
             )
 
         if (
-            not isinstance(args.max_tokens, int)
-            or not 1 <= args.max_tokens <= 4096
+            not isinstance(effective_max_tokens, int)
+            or not 1 <= effective_max_tokens <= 4096
         ):
             raise ValueError(
                 "max-tokens must be an integer "
@@ -470,7 +485,7 @@ def main(argv=None):
             key,
             args.model,
             args.timeout,
-            args.max_tokens,
+            effective_max_tokens,
             args.allow_http,
             args.use_env_proxy,
         )
@@ -524,7 +539,7 @@ def main(argv=None):
                 model=args.model,
                 key=key,
                 timeout=args.timeout,
-                max_tokens=args.max_tokens,
+                max_tokens=effective_max_tokens,
                 allow_http=args.allow_http,
                 use_env_proxy=args.use_env_proxy,
                 authentication_requested=(
