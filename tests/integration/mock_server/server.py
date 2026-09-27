@@ -72,7 +72,11 @@ def _chat_completions_handler(request):
 
         if is_second_tool_request:
             return _json_response(
-                tool_final_response()
+                tool_final_response(next(
+                    message["content"]
+                    for message in messages
+                    if message.get("role") == "tool"
+                ))
             )
 
         return _json_response(
@@ -777,9 +781,9 @@ def register_invalid_tool_arguments_route(
                                     "id": "call-1",
                                     "type": "function",
                                     "function": {
-                                        "name": "add_numbers",
+                                        "name": "get_diagnostic_value",
                                         "arguments": (
-                                            '{"a":17}'
+                                            '{"challenge":17}'
                                         ),
                                     },
                                 }

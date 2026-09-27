@@ -1,6 +1,7 @@
 """ED-030.3 Deep full-flow integration tests."""
 
 import json
+import re
 
 from apiwells.models import ResultStatus
 from apiwells.reporting import (
@@ -147,11 +148,9 @@ def test_deep_full_flow_happy_path(
         is True
     )
 
-    assert (
-        tool_result.evidence[
-            "local_tool_result"
-        ]
-        == 42
+    assert re.fullmatch(
+        r"apiwells-[0-9a-f]{16}",
+        tool_result.evidence["local_tool_result"],
     )
 
     # ---------------------------------------------

@@ -53,8 +53,10 @@ def tool_call_response() -> dict:
                             "id": "call-1",
                             "type": "function",
                             "function": {
-                                "name": "add_numbers",
-                                "arguments": '{"a":17,"b":25}',
+                                "name": "get_diagnostic_value",
+                                "arguments": (
+                                    '{"challenge":"apiwells-tool-check"}'
+                                ),
                             },
                         }
                     ],
@@ -65,7 +67,7 @@ def tool_call_response() -> dict:
     }
 
 
-def tool_final_response() -> dict:
+def tool_final_response(value: str) -> dict:
     return {
         "id": "chatcmpl-tool-2",
         "object": "chat.completion",
@@ -74,7 +76,7 @@ def tool_final_response() -> dict:
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": "The result is 42.",
+                    "content": "The result is " + value,
                 },
                 "finish_reason": "stop",
             }

@@ -2,6 +2,7 @@
 
 import http.client
 import json
+import secrets
 import time
 import urllib.error
 import urllib.request
@@ -19,49 +20,40 @@ from ..transport import open_request
 RESPONSE_LIMIT = 2 * 1024 * 1024
 
 
-def _is_number(value: object) -> bool:
-    """Return whether value is a JSON-style number suitable for this tool."""
-
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-    )
+DIAGNOSTIC_CHALLENGE = "apiwells-tool-check"
 
 
-def _add_numbers(
-    a: int | float,
-    b: int | float,
-) -> int | float:
-    """Side-effect-free local diagnostic tool."""
+def _get_diagnostic_value(challenge: str) -> str:
+    """Generate a side-effect-free local diagnostic result."""
 
-    return a + b
+    if challenge != DIAGNOSTIC_CHALLENGE:
+        raise ValueError("Invalid diagnostic challenge.")
+
+    return "apiwells-" + secrets.token_hex(8)
 
 
 class ToolCallingProbe:
     """Validate a complete two-request function calling round trip."""
 
-    TOOL_NAME = "add_numbers"
+    TOOL_NAME = "get_diagnostic_value"
 
     TOOL_DEFINITION = {
         "type": "function",
         "function": {
             "name": TOOL_NAME,
             "description": (
-                "Add two numbers and return their sum."
+                "Return a diagnostic value generated only "
+                "when this tool executes."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "a": {
-                        "type": "number",
-                    },
-                    "b": {
-                        "type": "number",
+                    "challenge": {
+                        "type": "string",
                     },
                 },
                 "required": [
-                    "a",
-                    "b",
+                    "challenge",
                 ],
                 "additionalProperties": False,
             },
@@ -332,39 +324,16 @@ class ToolCallingProbe:
                 "TOOL_CALL_INVALID",
             )
 
-        if set(arguments) != {
-            "a",
-            "b",
-        }:
+        if set(arguments) != {"challenge"}:
             return (
                 None,
                 None,
                 "TOOL_CALL_INVALID",
             )
 
-        if not _is_number(
-            arguments["a"]
-        ):
-            return (
-                None,
-                None,
-                "TOOL_CALL_INVALID",
-            )
-
-        if not _is_number(
-            arguments["b"]
-        ):
-            return (
-                None,
-                None,
-                "TOOL_CALL_INVALID",
-            )
-
-        # This diagnostic task deliberately asks for 17 + 25.
-        # Validate that the model requested the intended operation.
         if (
-            arguments["a"] != 17
-            or arguments["b"] != 25
+            not isinstance(arguments["challenge"], str)
+            or arguments["challenge"] != DIAGNOSTIC_CHALLENGE
         ):
             return (
                 None,
@@ -384,9 +353,13 @@ class ToolCallingProbe:
         user_message = {
             "role": "user",
             "content": (
-                "Use the add_numbers tool to calculate "
-                "17 + 25. Use the tool rather than "
-                "calculating the answer yourself."
+                "This is an API Tool Calling conformance test. "
+                "The diagnostic value is not present in this conversation "
+                "and must not be guessed. Call get_diagnostic_value "
+                'exactly once with challenge="apiwells-tool-check". '
+                "Do not give a final answer before receiving the tool "
+                "result. After receiving the tool result, return that "
+                "exact value."
             ),
         }
 
@@ -574,9 +547,8 @@ class ToolCallingProbe:
                 error_code="TOOL_CALL_INVALID",
             )
 
-        local_result = _add_numbers(
-            arguments["a"],
-            arguments["b"],
+        local_result = _get_diagnostic_value(
+            arguments["challenge"],
         )
 
         second_payload = {
@@ -714,7 +686,7 @@ class ToolCallingProbe:
         if (
             not isinstance(final_content, str)
             or not final_content.strip()
-            or "42" not in final_content
+            or local_result not in final_content
         ):
             return ProbeResult(
                 name="tool_calling",

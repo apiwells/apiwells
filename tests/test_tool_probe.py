@@ -1,6 +1,11 @@
 """Tests for the Tool Calling round-trip probe."""
 
+import copy
 import json
+from dataclasses import asdict
+from unittest.mock import patch
+
+import pytest
 import threading
 import unittest
 
@@ -87,7 +92,11 @@ class ToolHandler(BaseHTTPRequestHandler):
                             "message": {
                                 "role": "assistant",
                                 "content": (
-                                    "The result is 42."
+                                    "The result is " + next(
+                                        message["content"]
+                                        for message in payload["messages"]
+                                        if message.get("role") == "tool"
+                                    )
                                 ),
                             }
                         }
@@ -125,7 +134,7 @@ class ToolHandler(BaseHTTPRequestHandler):
                                     "function": {
                                         "name": "wrong_tool",
                                         "arguments": (
-                                            '{"a":17,"b":25}'
+                                            '{"challenge":"apiwells-tool-check"}'
                                         ),
                                     },
                                 }
@@ -147,7 +156,7 @@ class ToolHandler(BaseHTTPRequestHandler):
                                     "id": "call-1",
                                     "type": "function",
                                     "function": {
-                                        "name": "add_numbers",
+                                        "name": "get_diagnostic_value",
                                         "arguments": (
                                             "{not-json}"
                                         ),
@@ -171,9 +180,9 @@ class ToolHandler(BaseHTTPRequestHandler):
                                     "id": "call-1",
                                     "type": "function",
                                     "function": {
-                                        "name": "add_numbers",
+                                        "name": "get_diagnostic_value",
                                         "arguments": (
-                                            '{"a":17}'
+                                            '{}'
                                         ),
                                     },
                                 }
@@ -195,9 +204,9 @@ class ToolHandler(BaseHTTPRequestHandler):
                                     "id": "call-1",
                                     "type": "function",
                                     "function": {
-                                        "name": "add_numbers",
+                                        "name": "get_diagnostic_value",
                                         "arguments": (
-                                            '{"a":17,"b":25}'
+                                            '{"challenge":"apiwells-tool-check"}'
                                         ),
                                     },
                                 }
@@ -264,11 +273,9 @@ class ToolCallingProbeTests(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(
-            result.evidence[
-                "local_tool_result"
-            ],
-            42,
+        self.assertRegex(
+            result.evidence["local_tool_result"],
+            r"^apiwells-[0-9a-f]{16}$",
         )
 
         self.assertEqual(
@@ -303,7 +310,7 @@ class ToolCallingProbeTests(unittest.TestCase):
         self.assertEqual(
             first_payload["tools"][0]
             ["function"]["name"],
-            "add_numbers",
+            "get_diagnostic_value",
         )
 
         self.assertNotIn(
@@ -336,7 +343,7 @@ class ToolCallingProbeTests(unittest.TestCase):
             tool_messages[0][
                 "content"
             ],
-            "42",
+            result.evidence["local_tool_result"],
         )
 
     def test_missing_tool_call_keeps_support_unknown(self):
@@ -495,6 +502,231 @@ class ToolCallingProbeTests(unittest.TestCase):
                 self.base + "/valid",
                 model="",
             )
+
+
+def diagnostic_message():
+    return {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{
+            "id": "call-diagnostic",
+            "type": "function",
+            "function": {
+                "name": "get_diagnostic_value",
+                "arguments": '{"challenge":"apiwells-tool-check"}',
+            },
+        }],
+    }
+
+
+@pytest.mark.parametrize("reasoning", [None, "fixture-private-reasoning"])
+def test_runtime_round_trip_preserves_complete_message(reasoning):
+    first_message = diagnostic_message()
+    first_message["content"] = "fixture-private-content"
+    first_message["provider_metadata"] = {"trace": ["fixture-private-metadata"]}
+    if reasoning is not None:
+        first_message["reasoning_content"] = reasoning
+    original_message = copy.deepcopy(first_message)
+    probe = ToolCallingProbe(
+        "https://example.invalid/v1",
+        model="demo-model",
+        key="fixture-api-key",
+    )
+    payloads = []
+    values = ["apiwells-" + digit * 16 for digit in ("a", "b")]
+
+    with patch(
+        "apiwells.probes.tools.secrets.token_hex",
+        side_effect=["a" * 16, "b" * 16],
+    ) as token_hex:
+        def respond(payload):
+            payloads.append(copy.deepcopy(payload))
+            run_index = (len(payloads) - 1) // 2
+            if len(payloads) % 2:
+                # The value is generated only after the call is validated.
+                assert token_hex.call_count == run_index
+                assert payload["messages"] == [{
+                    "role": "user",
+                    "content": payload["messages"][0]["content"],
+                }]
+                assert "tool_choice" not in payload
+                assert payload["tools"][0]["function"]["name"] == (
+                    "get_diagnostic_value"
+                )
+                assert payload["tools"][0]["function"]["parameters"] == {
+                    "type": "object",
+                    "properties": {"challenge": {"type": "string"}},
+                    "required": ["challenge"],
+                    "additionalProperties": False,
+                }
+                for value in values:
+                    assert value not in json.dumps(payload)
+                return 200, {"choices": [{"message": first_message}]}, None
+
+            assert token_hex.call_count == run_index + 1
+            token_hex.assert_called_with(8)
+            assert "tool_choice" not in payload
+            assert payload["tools"] == payloads[-2]["tools"]
+            assert payload["messages"] == [
+                payloads[-2]["messages"][0],
+                original_message,
+                {
+                    "role": "tool",
+                    "tool_call_id": "call-diagnostic",
+                    "content": values[run_index],
+                },
+            ]
+            return 200, {"choices": [{"message": {
+                "role": "assistant",
+                "content": "The result is " + values[run_index],
+            }}]}, None
+
+        with patch.object(probe, "_request_json", side_effect=respond):
+            results = [probe.run(), probe.run()]
+
+    assert first_message == original_message
+    assert token_hex.call_count == 2
+    assert len(payloads) == 4
+    for result, value in zip(results, values):
+        assert result.status == ResultStatus.PASS
+        assert result.support == SupportStatus.SUPPORTED
+        assert result.metrics["request_count"] == 2
+        assert result.evidence["local_tool_result"] == value
+        assert result.evidence["round_trip_completed"] is True
+        reportable = json.dumps(asdict(result))
+        for private in (
+            "fixture-api-key", "fixture-private-content",
+            "fixture-private-metadata", "fixture-private-reasoning",
+        ):
+            assert private not in reportable
+            assert private not in repr(result)
+
+
+@pytest.mark.parametrize("arguments", [
+    '{"challenge":"wrong-challenge"}',
+    '{"challenge":"apiwells-tool-check "}',
+    '{"challenge":17}',
+    '{"challenge":true}',
+    '{"challenge":null}',
+    '{"challenge":["apiwells-tool-check"]}',
+    '{"challenge":{"value":"apiwells-tool-check"}}',
+    '{"challenge":"apiwells-tool-check","extra":1}',
+    '{}',
+    '[]',
+    '"apiwells-tool-check"',
+    'null',
+    '{not-json}',
+    {"challenge": "apiwells-tool-check"},
+])
+def test_invalid_challenge_stops_before_execution(arguments):
+    message = diagnostic_message()
+    message["tool_calls"][0]["function"]["arguments"] = arguments
+    probe = ToolCallingProbe("https://example.invalid/v1", model="demo-model")
+    with (
+        patch.object(probe, "_request_json", return_value=(
+            200, {"choices": [{"message": message}]}, None,
+        )) as request,
+        patch("apiwells.probes.tools.secrets.token_hex") as token_hex,
+    ):
+        result = probe.run()
+    assert result.status == ResultStatus.FAIL
+    assert result.support == SupportStatus.UNKNOWN
+    assert result.error_code == "TOOL_CALL_INVALID"
+    assert result.evidence["round_trip_completed"] is False
+    assert result.metrics["request_count"] == 1
+    request.assert_called_once()
+    token_hex.assert_not_called()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("id", None),
+    ("id", ""),
+    ("id", " "),
+    ("id", 17),
+    ("type", "unexpected"),
+    ("function", None),
+    ("function", {"name": "wrong_tool", "arguments": "{}"}),
+])
+def test_malformed_tool_call_stops_before_execution(field, value):
+    message = diagnostic_message()
+    message["tool_calls"][0][field] = value
+    probe = ToolCallingProbe("https://example.invalid/v1", model="demo-model")
+    with patch.object(probe, "_request_json", return_value=(
+        200, {"choices": [{"message": message}]}, None,
+    )) as request:
+        result = probe.run()
+    assert result.status == ResultStatus.FAIL
+    assert result.support == SupportStatus.UNKNOWN
+    assert result.error_code == "TOOL_CALL_INVALID"
+    request.assert_called_once()
+
+
+@pytest.mark.parametrize("calls", [[], None, [None], [
+    diagnostic_message()["tool_calls"][0],
+    diagnostic_message()["tool_calls"][0],
+]])
+def test_tool_call_count_validation(calls):
+    message = diagnostic_message()
+    message["tool_calls"] = calls
+    probe = ToolCallingProbe("https://example.invalid/v1", model="demo-model")
+    with patch.object(probe, "_request_json", return_value=(
+        200, {"choices": [{"message": message}]}, None,
+    )) as request:
+        result = probe.run()
+    assert result.status == (ResultStatus.FAIL if calls else ResultStatus.PARTIAL)
+    assert result.support == SupportStatus.UNKNOWN
+    assert result.error_code == "TOOL_CALL_INVALID"
+    request.assert_called_once()
+
+
+@pytest.mark.parametrize("content", [
+    "42",
+    "I received the result.",
+    "apiwells-tool-check",
+    "apiwells-ffffffffffffffff",
+    "apiwells-0123456789abcde",
+    "apiwells-0123456789ABCDEf",
+    "",
+    None,
+    ["apiwells-0123456789abcdef"],
+])
+def test_final_answer_requires_exact_runtime_value(content):
+    probe = ToolCallingProbe(
+        "https://example.invalid/v1", model="demo-model", key="fixture-api-key",
+    )
+    with (
+        patch("apiwells.probes.tools.secrets.token_hex", return_value=(
+            "0123456789abcdef"
+        )),
+        patch.object(probe, "_request_json", side_effect=[
+            (200, {"choices": [{"message": diagnostic_message()}]}, None),
+            (200, {"choices": [{"message": {
+                "role": "assistant", "content": content,
+            }}]}, None),
+        ]) as request,
+    ):
+        result = probe.run()
+    assert result.status == ResultStatus.FAIL
+    assert result.support == SupportStatus.SUPPORTED
+    assert result.error_code == "TOOL_CALL_INVALID"
+    assert result.evidence["round_trip_completed"] is False
+    assert result.metrics["request_count"] == 2
+    assert request.call_count == 2
+    assert "fixture-api-key" not in json.dumps(asdict(result))
+
+
+def test_second_request_failure_is_not_retried_or_reported_as_pass():
+    probe = ToolCallingProbe("https://example.invalid/v1", model="demo-model")
+    with patch.object(probe, "_request_json", side_effect=[
+        (200, {"choices": [{"message": diagnostic_message()}]}, None),
+        (500, None, "UPSTREAM_5XX"),
+    ]) as request:
+        result = probe.run()
+    assert result.status == ResultStatus.FAIL
+    assert result.support == SupportStatus.SUPPORTED
+    assert result.error_code == "UPSTREAM_5XX"
+    assert result.evidence["round_trip_completed"] is False
+    assert request.call_count == 2
 
 
 if __name__ == "__main__":

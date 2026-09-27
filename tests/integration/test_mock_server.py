@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from urllib.request import urlopen
 
@@ -129,11 +131,9 @@ def test_tool_probe_against_mock_provider(
         is True
     )
 
-    assert (
-        result.evidence[
-            "local_tool_result"
-        ]
-        == 42
+    assert re.fullmatch(
+        r"apiwells-[0-9a-f]{16}",
+        result.evidence["local_tool_result"],
     )
 
     assert (

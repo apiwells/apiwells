@@ -115,7 +115,11 @@ class DeepHandler(BaseHTTPRequestHandler):
                             "message": {
                                 "role": "assistant",
                                 "content": (
-                                    "The result is 42."
+                                    "The result is " + next(
+                                        message["content"]
+                                        for message in payload["messages"]
+                                        if message.get("role") == "tool"
+                                    )
                                 ),
                             }
                         }
@@ -150,7 +154,7 @@ class DeepHandler(BaseHTTPRequestHandler):
                                         "function": {
                                             "name": "wrong_tool",
                                             "arguments": (
-                                                '{"a":17,"b":25}'
+                                                '{"challenge":"apiwells-tool-check"}'
                                             ),
                                         },
                                     }
@@ -172,9 +176,9 @@ class DeepHandler(BaseHTTPRequestHandler):
                                         "id": "call-1",
                                         "type": "function",
                                         "function": {
-                                            "name": "add_numbers",
+                                            "name": "get_diagnostic_value",
                                             "arguments": (
-                                                '{"a":17,"b":25}'
+                                                '{"challenge":"apiwells-tool-check"}'
                                             ),
                                         },
                                     }
@@ -383,11 +387,9 @@ class DeepRunnerTests(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(
-            tool_calling.evidence[
-                "local_tool_result"
-            ],
-            42,
+        self.assertRegex(
+            tool_calling.evidence["local_tool_result"],
+            r"^apiwells-[0-9a-f]{16}$",
         )
 
         self.assertEqual(
@@ -462,7 +464,7 @@ class DeepRunnerTests(unittest.TestCase):
             DeepHandler.calls[4][3]
         )
 
-        # 第一次 Tool 请求必须真正声明 add_numbers 工具
+        # 第一次 Tool 请求必须真正声明 get_diagnostic_value 工具
         self.assertIn(
             "tools",
             first_tool_payload,
@@ -472,7 +474,7 @@ class DeepRunnerTests(unittest.TestCase):
             first_tool_payload[
                 "tools"
             ][0]["function"]["name"],
-            "add_numbers",
+            "get_diagnostic_value",
         )
 
         self.assertFalse(
@@ -504,7 +506,7 @@ class DeepRunnerTests(unittest.TestCase):
             tool_messages[0][
                 "content"
             ],
-            "42",
+            tool_calling.evidence["local_tool_result"],
         )
 
         self.assertEqual(
