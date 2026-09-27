@@ -1,9 +1,11 @@
 import json
 import threading
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from apiwells.models import ResultStatus, SupportStatus
+from apiwells.probes import TLSProbe
 from apiwells.runner import run_basic_diagnostics
 
 
@@ -226,6 +228,20 @@ class BasicRunnerTests(unittest.TestCase):
                 )
             ],
         )
+
+
+    def test_proxy_policy_is_propagated_to_tls_without_provider_key(self):
+        for enabled in (False, True):
+            with self.subTest(use_env_proxy=enabled), patch(
+                "apiwells.runner.TLSProbe", wraps=TLSProbe,
+            ) as tls, patch("apiwells.transport.urllib.request.proxy_bypass", return_value=True):
+                run_basic_diagnostics(
+                    self.base + "/v1", key="secret-test-key", timeout=2,
+                    use_env_proxy=enabled,
+                )
+                tls.assert_called_once_with(
+                    self.base + "/v1", timeout=2, use_env_proxy=enabled,
+                )
 
 
 if __name__ == "__main__":

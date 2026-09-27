@@ -1,18 +1,20 @@
 import io
 import os
 import socket
+import ssl
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from apiwells.transport import (
     HTTPObservation,
     StreamReadError,
     iter_response_lines,
     open_request,
+    verify_tls,
 )
 
 
@@ -446,6 +448,115 @@ class TransportTests(unittest.TestCase):
                     stream_limit=50,
                 )
             )
+
+
+class TLSTransportTests(unittest.TestCase):
+    def setUp(self):
+        self.raw_socket = MagicMock()
+        self.raw_socket.makefile.side_effect = lambda *args, **kwargs: io.BytesIO(
+            b"HTTP/1.1 200 Connection established\r\n\r\n"
+        )
+        self.tls_socket = MagicMock()
+        self.tls_socket.version.return_value = "TLSv1.3"
+        self.tls_socket.cipher.return_value = ("TEST_CIPHER", "TLSv1.3", 256)
+        self.context = ssl.create_default_context()
+        self.env = {
+            "https_proxy": "http://proxy.example:8080",
+            "no_proxy": "unrelated.example",
+        }
+
+    def check_route(self, env, expected_address, tunneled, use_env_proxy=True):
+        # Keep the actual urllib and HTTPSConnection path, replacing only I/O.
+        with patch("os.environ", dict(env)), patch(
+            "ssl._create_default_https_context", return_value=self.context,
+        ), patch.object(
+            self.context, "wrap_socket", return_value=self.tls_socket,
+        ) as wrap, patch(
+            "socket.create_connection", return_value=self.raw_socket,
+        ) as connect:
+            metadata = verify_tls(
+                "https://target.example:8443/v1", 2, use_env_proxy=use_env_proxy,
+            )
+            self.assertEqual(metadata, ("TLSv1.3", ("TEST_CIPHER", "TLSv1.3", 256)))
+            connect.assert_called_once_with(expected_address, 2, None)
+            wrap.assert_called_once_with(
+                self.raw_socket, server_hostname="target.example",
+            )
+            self.assertTrue(self.context.check_hostname)
+            self.assertEqual(self.context.verify_mode, ssl.CERT_REQUIRED)
+            self.tls_socket.sendall.assert_not_called()
+            self.tls_socket.close.assert_called_once()
+            tls_connect_args = connect.call_args
+            if tunneled:
+                self.raw_socket.sendall.assert_called_once()
+                sent = self.raw_socket.sendall.call_args.args[0]
+                self.assertTrue(sent.startswith(b"CONNECT target.example:8443 HTTP/"))
+                self.assertNotIn(b"\r\nAuthorization:", sent)
+            else:
+                self.raw_socket.sendall.assert_not_called()
+
+            # The ordinary HTTP opener must select the same route and SNI.
+            connect.reset_mock()
+            wrap.reset_mock()
+            self.tls_socket.makefile.return_value = io.BytesIO(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+            )
+            with open_request(
+                urllib.request.Request("https://target.example:8443/v1/models"),
+                timeout=2, use_env_proxy=use_env_proxy,
+            ) as response:
+                self.assertEqual(response.code, 200)
+            connect.assert_called_once_with(*tls_connect_args.args, **tls_connect_args.kwargs)
+            wrap.assert_called_once_with(self.raw_socket, server_hostname="target.example")
+
+    def test_env_proxy_matches_http_connect_and_validates_target(self):
+        self.check_route(self.env, ("proxy.example", 8080), True)
+
+    def test_no_proxy_matches_http_bypass(self):
+        self.env["no_proxy"] = "target.example"
+        self.check_route(self.env, ("target.example", 8443), False)
+
+    def test_uppercase_https_proxy_matches_http(self):
+        self.check_route(
+            {"HTTPS_PROXY": "http://proxy.example:8080", "NO_PROXY": "unrelated.example"},
+            ("proxy.example", 8080), True,
+        )
+
+    def test_https_proxy_lowercase_precedence_matches_http(self):
+        self.env["HTTPS_PROXY"] = "http://other.example:9090"
+        self.check_route(self.env, ("proxy.example", 8080), True)
+
+    def test_http_proxy_alone_is_not_used_for_https(self):
+        self.check_route(
+            {"http_proxy": "http://proxy.example:8080", "no_proxy": "unrelated.example"},
+            ("target.example", 8443), False,
+        )
+
+    def test_proxy_is_opt_in(self):
+        self.check_route(self.env, ("target.example", 8443), False, use_env_proxy=False)
+
+    def test_proxy_auth_is_sent_only_in_connect(self):
+        self.env["https_proxy"] = "http://test-user:test-password@proxy.example:8080"
+        self.check_route(self.env, ("proxy.example", 8080), True)
+        connect_bytes = self.raw_socket.sendall.call_args.args[0]
+        self.assertIn(b"Proxy-Authorization: Basic ", connect_bytes)
+        self.assertNotIn(b"test-password", connect_bytes)
+        origin_bytes = self.tls_socket.sendall.call_args.args[0]
+        self.assertNotIn(b"Proxy-Authorization", origin_bytes)
+
+    def test_failed_connect_closes_socket_without_retry(self):
+        self.raw_socket.makefile.side_effect = lambda *args, **kwargs: io.BytesIO(
+            b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n"
+        )
+        with patch.dict(os.environ, self.env, clear=True), patch(
+            "socket.create_connection", return_value=self.raw_socket,
+        ) as connect:
+            with self.assertRaises(OSError):
+                verify_tls("https://target.example/v1", 1, use_env_proxy=True)
+        connect.assert_called_once()
+        self.raw_socket.sendall.assert_called_once()
+        self.raw_socket.close.assert_called()
+
 
 if __name__ == "__main__":
     unittest.main()

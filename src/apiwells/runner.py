@@ -88,6 +88,7 @@ def run_basic_diagnostics(
             TLSProbe(
                 normalized_base,
                 timeout=timeout,
+                use_env_proxy=use_env_proxy,
             ),
             HTTPProbe(
                 models_observation

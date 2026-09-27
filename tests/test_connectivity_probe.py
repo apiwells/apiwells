@@ -1,3 +1,5 @@
+import io
+import os
 import socket
 import ssl
 import unittest
@@ -428,6 +430,106 @@ class TLSProbeTests(unittest.TestCase):
             results[0].status,
             ResultStatus.PASS,
         )
+
+
+    def test_direct_hostname_mismatch(self):
+        with patch("socket.create_connection", return_value=MagicMock()), patch(
+            "ssl.create_default_context",
+        ) as context:
+            context.return_value.wrap_socket.side_effect = ssl.SSLCertVerificationError(
+                1, "hostname mismatch",
+            )
+            result = TLSProbe("https://target.example/v1").run()
+        self.assertEqual(result.error_code, "TLS_ERROR")
+        self.assertEqual(result.evidence["failure_kind"], "hostname_mismatch")
+
+    def test_proxy_path_results_and_single_attempt(self):
+        cases = [
+            (None, None, None, None),
+            (None, ssl.SSLCertVerificationError(1, "invalid certificate"),
+             "TLS_ERROR", "certificate_verification"),
+            (None, ssl.SSLCertVerificationError(1, "hostname mismatch"),
+             "TLS_ERROR", "hostname_mismatch"),
+            (None, ssl.SSLError(1, "handshake failed"), "TLS_ERROR", "handshake"),
+            (socket.timeout("test-proxy-secret"), None, "TIMEOUT", None),
+            (ConnectionRefusedError("test-proxy-secret"), None, "CONNECTION_ERROR", None),
+            (None, socket.timeout("test-proxy-secret"), "TIMEOUT", None),
+        ]
+        for connect_error, tls_error, expected_error, failure_kind in cases:
+            with self.subTest(error=expected_error, kind=failure_kind):
+                raw = MagicMock()
+                raw.makefile.return_value = io.BytesIO(
+                    b"HTTP/1.1 200 Connection established\r\n\r\n"
+                )
+                tls = MagicMock()
+                tls.version.return_value = "TLSv1.3"
+                tls.cipher.return_value = ("TEST_CIPHER", "TLSv1.3", 256)
+                context = ssl.create_default_context()
+                with patch.dict(os.environ, {
+                    "https_proxy": "http://proxy.example:8080", "no_proxy": "unrelated.example",
+                }, clear=True), patch(
+                    "socket.create_connection", return_value=raw, side_effect=connect_error,
+                ) as connect, patch(
+                    "ssl._create_default_https_context", return_value=context,
+                ), patch.object(
+                    context, "wrap_socket", return_value=tls, side_effect=tls_error,
+                ) as wrap:
+                    result = TLSProbe(
+                        "https://target.example/v1", timeout=1, use_env_proxy=True,
+                    ).run()
+                self.assertEqual(result.error_code, expected_error)
+                self.assertEqual(
+                    result.status, ResultStatus.FAIL if expected_error else ResultStatus.PASS,
+                )
+                self.assertEqual(result.evidence.get("failure_kind"), failure_kind)
+                self.assertNotIn("test-proxy-secret", repr(result))
+                connect.assert_called_once_with(("proxy.example", 8080), 1, None)
+                if connect_error is None:
+                    wrap.assert_called_once_with(raw, server_hostname="target.example")
+                    raw.sendall.assert_called_once()
+                tls.sendall.assert_not_called()
+                if tls_error is not None:
+                    raw.close.assert_called()
+
+    def test_proxy_connect_failures_are_sanitized(self):
+        for response, expected in [
+            (b"HTTP/1.1 407 test-proxy-secret\r\n\r\n", "CONNECTION_ERROR"),
+            (b"HTTP/1.1 502 test-proxy-secret\r\n\r\n", "CONNECTION_ERROR"),
+            (b"invalid-test-proxy-secret\r\n", "CONNECTION_ERROR"),
+            (socket.timeout("test-proxy-secret"), "TIMEOUT"),
+        ]:
+            with self.subTest(expected=expected):
+                raw = MagicMock()
+                if isinstance(response, Exception):
+                    raw.makefile.side_effect = response
+                else:
+                    raw.makefile.return_value = io.BytesIO(response)
+                context = ssl.create_default_context()
+                with patch.dict(os.environ, {
+                    "https_proxy": "http://proxy.example:8080", "no_proxy": "unrelated.example",
+                }, clear=True), patch(
+                    "ssl._create_default_https_context", return_value=context,
+                ), patch(
+                    "socket.create_connection", return_value=raw,
+                ) as connect:
+                    result = TLSProbe(
+                        "https://target.example/v1", timeout=1, use_env_proxy=True,
+                    ).run()
+                self.assertEqual(result.error_code, expected)
+                self.assertNotIn("test-proxy-secret", repr(result))
+                connect.assert_called_once()
+                raw.sendall.assert_called_once()
+                raw.close.assert_called()
+
+    def test_invalid_proxy_configuration_is_sanitized(self):
+        with patch.dict(os.environ, {
+            "https_proxy": "http://test-user:test-proxy-secret@proxy.example:invalid",
+            "no_proxy": "unrelated.example",
+        }, clear=True), patch("socket.create_connection") as connect:
+            result = TLSProbe("https://target.example/v1", use_env_proxy=True).run()
+        self.assertEqual(result.error_code, "CONFIG_ERROR")
+        self.assertNotIn("test-proxy-secret", repr(result))
+        connect.assert_not_called()
 
 
 class StaticObservation:

@@ -17,14 +17,48 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _proxy_handler(use_env_proxy: bool):
+    return urllib.request.ProxyHandler(None if use_env_proxy else {})
+
+
+def verify_tls(base_url: str, timeout: float, use_env_proxy: bool = False):
+    """Verify target TLS once using the HTTP transport's proxy policy.
+
+    ProxyHandler owns environment/platform proxy selection, bypass rules and
+    proxy authentication. HTTPSConnection performs CONNECT and then verifies
+    the target certificate and hostname, just as urllib's HTTPSHandler does.
+    Stop after connect(): no HTTP request or provider credentials are sent.
+    """
+    request = urllib.request.Request(base_url)
+    if request.type != "https":
+        raise ValueError("TLS verification requires HTTPS.")
+
+    handler = _proxy_handler(use_env_proxy)
+    proxy_open = getattr(handler, "https_open", None)
+    if proxy_open is not None:
+        proxy_open(request)
+
+    connection = http.client.HTTPSConnection(request.host, timeout=timeout)
+    try:
+        # These are the same Request tunnel fields used by urllib.do_open.
+        if request._tunnel_host:
+            headers = {}
+            proxy_auth = request.get_header("Proxy-authorization")
+            if proxy_auth is not None:
+                headers["Proxy-Authorization"] = proxy_auth
+            connection.set_tunnel(request._tunnel_host, headers=headers)
+        connection.connect()
+        return connection.sock.version(), connection.sock.cipher()
+    finally:
+        connection.close()
+
+
 def build_opener(use_env_proxy: bool = False):
     """Build an opener with Endpoint Doctor's transport policy."""
 
-    proxies = None if use_env_proxy else {}
-
     return urllib.request.build_opener(
         NoRedirect(),
-        urllib.request.ProxyHandler(proxies),
+        _proxy_handler(use_env_proxy),
     )
 
 

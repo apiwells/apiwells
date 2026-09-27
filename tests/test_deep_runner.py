@@ -1,6 +1,8 @@
 import json
+import ssl
 import threading
 import unittest
+from unittest.mock import patch
 from http.server import (
     BaseHTTPRequestHandler,
     ThreadingHTTPServer,
@@ -11,6 +13,8 @@ from apiwells.models import (
     SupportStatus,
 )
 from apiwells.runner import run_deep_diagnostics
+from apiwells.transport import open_request
+from apiwells.reporting import build_json_report
 
 
 class DeepHandler(BaseHTTPRequestHandler):
@@ -725,6 +729,64 @@ class DeepRunnerTests(unittest.TestCase):
             len(DeepHandler.calls),
             5,
         )
+
+
+    def test_proxy_tls_result_controls_deep_gate_even_when_models_succeeds(self):
+        basic_order = ["url", "dns", "tls", "http", "auth", "models"]
+        for failure in (None, ssl.SSLCertVerificationError(1, "test-proxy-secret")):
+            with self.subTest(tls_failure=failure is not None):
+                DeepHandler.calls.clear()
+
+                def local_http(request, timeout, use_env_proxy=False):
+                    self.assertTrue(use_env_proxy)
+                    # Route the HTTPS request to our existing local HTTP fixture.
+                    request.full_url = request.full_url.replace("https://", "http://", 1)
+                    return open_request(request, timeout, use_env_proxy=False)
+
+                with patch(
+                    "apiwells.probes.connectivity.verify_tls",
+                    return_value=("TLSv1.3", ("TEST_CIPHER", "TLSv1.3", 256)),
+                    side_effect=failure,
+                ) as handshake, patch(
+                    "apiwells.transport.open_request", side_effect=local_http,
+                ), patch(
+                    "apiwells.probes.streaming.open_request", side_effect=local_http,
+                ), patch(
+                    "apiwells.probes.chat.open_request", side_effect=local_http,
+                ), patch(
+                    "apiwells.probes.tools.open_request", side_effect=local_http,
+                ):
+                    base = self.base.replace("http://", "https://") + "/v1"
+                    results = run_deep_diagnostics(
+                        base, model="demo-model", key="secret-test-key",
+                        timeout=1, use_env_proxy=True,
+                    )
+                handshake.assert_called_once_with(base, timeout=1, use_env_proxy=True)
+                self.assertTrue(all(r.status is ResultStatus.PASS for r in results[3:6]))
+                self.assertTrue(results[5].evidence["target_model_found"])
+                order = basic_order if failure else basic_order + [
+                    "chat", "streaming", "tool_calling", "structured_output",
+                ]
+                self.assertEqual([r.name for r in results], order)
+                if failure:
+                    self.assertEqual(results[2].error_code, "TLS_ERROR")
+                    self.assertEqual([call[0] for call in DeepHandler.calls], ["GET"])
+                else:
+                    self.assertTrue(all(r.status is ResultStatus.PASS for r in results))
+                    self.assertEqual([call[0] for call in DeepHandler.calls], ["GET"] + ["POST"] * 5)
+                report = build_json_report(results)
+                self.assertEqual(report["schema_version"], "1")
+                self.assertEqual(set(report), {
+                    "schema_version", "apiwells_version", "overall_status", "probes",
+                })
+                self.assertEqual([r["name"] for r in report["probes"]], order)
+                for probe in report["probes"]:
+                    self.assertEqual(set(probe), {
+                        "name", "status", "support", "summary", "metrics", "evidence", "error_code",
+                    })
+                for secret in ("test-proxy-secret", "secret-test-key", "Authorization"):
+                    self.assertNotIn(secret, json.dumps(report))
+
 
 if __name__ == "__main__":
     unittest.main()

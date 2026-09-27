@@ -1,12 +1,13 @@
 """Connectivity probes for Endpoint Doctor."""
 
+import http.client
 import socket
 import ssl
 import time
 import urllib.parse
 
 from ..config import normalize_endpoint
-from ..transport import HTTPObservation
+from ..transport import HTTPObservation, verify_tls
 from ..models import ProbeResult, ResultStatus, SupportStatus
 
 
@@ -187,9 +188,11 @@ class TLSProbe:
         self,
         base_url: str,
         timeout: float = 15.0,
+        use_env_proxy: bool = False,
     ) -> None:
         self.base_url = base_url
         self.timeout = timeout
+        self.use_env_proxy = use_env_proxy
 
     @staticmethod
     def _elapsed_ms(start: float) -> float:
@@ -239,18 +242,25 @@ class TLSProbe:
         start = time.monotonic()
 
         try:
-            context = ssl.create_default_context()
+            if self.use_env_proxy:
+                tls_version, cipher = verify_tls(
+                    self.base_url,
+                    timeout=self.timeout,
+                    use_env_proxy=True,
+                )
+            else:
+                context = ssl.create_default_context()
 
-            with socket.create_connection(
-                (host, port),
-                timeout=self.timeout,
-            ) as raw_socket:
-                with context.wrap_socket(
-                    raw_socket,
-                    server_hostname=host,
-                ) as tls_socket:
-                    tls_version = tls_socket.version()
-                    cipher = tls_socket.cipher()
+                with socket.create_connection(
+                    (host, port),
+                    timeout=self.timeout,
+                ) as raw_socket:
+                    with context.wrap_socket(
+                        raw_socket,
+                        server_hostname=host,
+                    ) as tls_socket:
+                        tls_version = tls_socket.version()
+                        cipher = tls_socket.cipher()
 
         except ssl.SSLCertVerificationError as exc:
             message = (
@@ -322,7 +332,20 @@ class TLSProbe:
                 error_code="TIMEOUT",
             )
 
-        except OSError:
+        except (ValueError, http.client.InvalidURL):
+            return ProbeResult(
+                name="tls",
+                status=ResultStatus.FAIL,
+                support=SupportStatus.NOT_APPLICABLE,
+                summary="TLS check could not start because the transport configuration is invalid.",
+                metrics={
+                    "latency_ms": self._elapsed_ms(start),
+                },
+                evidence={"host": host, "port": port},
+                error_code="CONFIG_ERROR",
+            )
+
+        except (OSError, http.client.HTTPException):
             return ProbeResult(
                 name="tls",
                 status=ResultStatus.FAIL,
