@@ -1,5 +1,12 @@
 # v0.2 Compatibility
 
+The ED-031 compatibility records below were captured before the package version
+was synchronized to 0.2.0. Their recorded package/build versions are preserved
+as historical point-in-time evidence and must not be rewritten to match the
+later final release version. Endpoint Doctor v0.2.0 was subsequently released
+on **2026-09-28**. Production Basic smoke and cross-platform CI do not replace
+these historical capability observations.
+
 ED-031 real endpoint/provider live validation is **CLOSED / PASS**. This page is
 a release-facing index; the historical
 [compatibility matrix](compatibility/compatibility-matrix.md) and individual

@@ -1,79 +1,106 @@
-# v0.2 Release Checklist
+# v0.2.0 Release Checklist
 
-Repository release-facing scope reference: [V0.2_SPEC.md](V0.2_SPEC.md), derived
-from the project-level frozen engineering baseline maintained outside the
-repository release artifacts.
+Release date: **2026-09-28**
 
-A checked evidence item applies only to its recorded development build/environment,
-not automatically to a future RC or final artifact. Unverified work stays unchecked.
+Release status: **CLOSED / PASS**
 
-Current baseline: branch `feature/v0.2-diagnostics`, starting commit
-`f63de41`, package/CLI **0.1.0 (v0.2 development build)**.
-v0.2.0 has not been released.
+Release source: `cac558b543336f42d17b8db99bfacd6e53d1e5dd`
 
-## Completed development-build evidence
+Release tag: `v0.2.0` (annotated)
 
-- [x] ED-031 real endpoint/provider live validation: **CLOSED / PASS**.
-  The [compatibility index](COMPATIBILITY.md) links the authoritative matrix
-  and MODEL-0001, MODEL-0002 and MODEL-0003 records.
-- [x] ED-032 Windows clean-install test: **CLOSED / PASS**.
-- [x] Local wheel + sdist build: **PASS**.
-- [x] Windows Basic real endpoint smoke: **PASS**.
-- [x] Windows clean-wheel integration suite: **43 passed**.
-- [x] Windows critical Deep smoke: **PASS**.
-- [x] No secret leak observed in the recorded validation.
+Production package: `apiwells==0.2.0`
 
-The ED-032 outcomes above are carried forward from the supplied ED-033
-acceptance baseline; they are not newly executed ED-033 checks. They do not
-replace or overwrite ED-031 compatibility measurements. Historical
-[0.1.0 validation](releases/0.1.0/VALIDATION.md) remains separate evidence, not
-v0.2 RC acceptance.
+Public release-facing specification: [V0.2_SPEC.md](V0.2_SPEC.md).
 
-## Frozen Scope gates (section 46)
+This completed release record reflects the acceptance evidence established
+during ED-034, ED-035 and the post-release production acceptance. ED-036 only
+reconciles the repository documentation with those already-confirmed results;
+it does not represent a new build, publication or execution of acceptance tests.
 
-| Gate | Required evidence | Current release disposition |
-|---|---|---|
-| A — Baseline | v0.1 regression tests, editable install, CLI smoke, clean baseline | Historical gate evidence must be included in final release review; no new PASS claimed here |
-| B — Core Architecture | Unified ProbeResult; runner independent of console; reporters do not send HTTP | Implementation described in the spec; final gate acceptance remains to be recorded |
-| C — Functional | Success, unsupported and failure paths for Models, Chat, Streaming, Tools and Structured Output | Test plan covers these paths; complete release validation evidence remains pending |
-| D — Security | Secret Leak Test passes; any complete credential leak blocks release | No leak observed in accepted validation; retain the dedicated release test evidence before final acceptance |
-| E — Real Providers | At least 3 independent providers/endpoints covering 3–5 Chinese models | PASS: closed ED-031 records |
-| F — Package | Build wheel + sdist and clean install | PASS for the development build via ED-032; RC/final artifact acceptance remains pending |
-| G — Release Documentation | README, CHANGELOG, SECURITY and the four release documents | PASS — ED-033 documentation reviewed and accepted |
+## Canonical final artifacts
 
-## Documentation acceptance (ED-033)
+| Artifact | Filename |
+|---|---|
+| Wheel | `apiwells-0.2.0-py3-none-any.whl` |
+| sdist | `apiwells-0.2.0.tar.gz` |
 
-- [x] Reconcile the release-facing specification/checklist with the supplied
-  frozen specification and current CLI compatibility behavior.
-- [x] Reviewer acceptance of README, changelog, security guidance, specification,
-  test plan, compatibility index and this checklist (Gate G): PASS.
+Wheel SHA256:
 
-TESTENV-01: the observed Windows harness used pytest **9.1.1**,
-pytest-httpserver **1.1.5** and Werkzeug **3.1.8**. These are test dependencies,
-not ApiWells runtime dependencies. See [TEST_PLAN.md](TEST_PLAN.md).
-No new dev-dependency packaging mechanism is selected in ED-033.
+```text
+AC346E77ADA9B376420BD9F3B83FDA1CAB2CFD89F80598A5937162F1EDF03168
+```
 
-## Remaining formal release gates
+sdist SHA256:
 
-- [ ] Complete remaining required release validation under the frozen scope:
-  unit, mock integration, Secret Leak Test and any outstanding platform/Python
-  coverage; retain evidence tied to the release candidate.
-- [ ] Complete macOS and Linux installation, `--version`, `--help`, Basic smoke
-  and mock-suite validation required by section 38.
-- [ ] Verify the minimal CI checks: unit tests, mock integration, wheel/sdist build
-  and package verification; live provider tests stay separately controlled.
-- [ ] Synchronize production version declarations to **0.2.0** in both
-  `pyproject.toml` and `src/apiwells/__init__.py` before formal RC/final artifacts.
-- [ ] Build and identify the formal **RC artifact**; validate metadata and
-  preserve artifact hashes and provenance.
-- [ ] Complete **TestPyPI** publication/installation validation.
-- [ ] Complete **RC clean-install acceptance** against the actual RC artifact.
-- [ ] Review all required release evidence and approve the final release.
-- [ ] Publish the final **PyPI 0.2.0 release**.
-- [ ] Complete **post-release PyPI clean-install smoke**, including the frozen
-  onboarding target of a first Basic check within about five minutes.
+```text
+CBD4D357E2DE397951B35D499A12AC89C3002F34E614634A1BFF12ECE35C32A3
+```
 
-VERSION-01: both version declarations remain 0.1.0 in ED-033. Whether to refactor
-to a single version source is undecided. Closed ED-031/ED-032 work is not
-reopened by these future artifact-specific gates. This checklist does not
-authorize publishing.
+These identify the canonical final release artifacts. The release source,
+annotated tag and published artifacts are unchanged by this documentation pass.
+
+## Completed release checklist
+
+- [x] Frozen scope validation.
+- [x] Package and CLI version synchronized to **0.2.0**.
+- [x] Unit tests.
+- [x] Mock integration tests.
+- [x] Secret leak validation.
+- [x] ED-031 real-provider compatibility evidence: **CLOSED / PASS**.
+- [x] ED-033 release documentation reviewed and accepted.
+- [x] ED-034 Windows formal RC acceptance.
+- [x] Wheel build.
+- [x] sdist build.
+- [x] `twine check`.
+- [x] TestPyPI publication.
+- [x] TestPyPI artifact identity.
+- [x] TestPyPI clean install.
+- [x] TestPyPI Basic smoke.
+- [x] Cross-platform CI — Ubuntu: **PASS**.
+- [x] Cross-platform CI — Windows: **PASS**.
+- [x] Cross-platform CI — macOS: **PASS**.
+- [x] Annotated `v0.2.0` tag created and pushed.
+- [x] ED-035 production PyPI publication.
+- [x] Production PyPI artifact identity.
+- [x] Fresh production PyPI clean install.
+- [x] `apiwells --version`: **PASS**, reports `apiwells 0.2.0`.
+- [x] `apiwells --help`: **PASS**.
+- [x] `apiwells doctor --help`: **PASS**.
+- [x] `pip check`: **PASS**.
+- [x] Production real-provider Basic smoke: **PASS**.
+- [x] v2 JSON contract: **PASS**.
+- [x] Secret not present in stdout/stderr.
+- [x] Temporary API key removed after testing.
+- [x] ≤5 minute onboarding target: **PASS**.
+- [x] Final release: **CLOSED / PASS**.
+
+## Evidence boundaries
+
+Cross-platform CI PASS is not macOS/Linux real-provider live-validation PASS.
+The production Basic smoke establishes the recorded Basic checks, not every
+Deep capability on every provider. The release record makes no claim that
+every Python version was tested or every provider capability passed.
+
+ED-031 compatibility results remain point-in-time evidence for their original
+endpoint, model, build and test date. Later production smoke and CI results
+do not replace those observations.
+
+## Historical evidence preserved
+
+- **ED-031 — CLOSED / PASS:** the [compatibility index](COMPATIBILITY.md) links
+  the authoritative matrix and MODEL-0001, MODEL-0002 and MODEL-0003 records.
+  Their original build versions, dates, metrics and PASS/PARTIAL results remain
+  unchanged.
+- **ED-032 — CLOSED / PASS:** local wheel + sdist build PASS, Windows Basic
+  real-endpoint smoke PASS, clean-wheel integration **43 passed**, critical
+  Deep smoke PASS and no secret leak observed. These are historical Windows
+  acceptance results, separate from ED-034 RC and production PyPI acceptance.
+- **TESTENV-01:** the observed ED-032 Windows harness used pytest **9.1.1**,
+  pytest-httpserver **1.1.5** and Werkzeug **3.1.8**. These are test dependencies,
+  not ApiWells runtime dependencies. See [TEST_PLAN.md](TEST_PLAN.md).
+- [0.1.0 validation](releases/0.1.0/VALIDATION.md) remains historical evidence for
+  that release; it is not relabeled as v0.2.0 acceptance.
+
+VERSION-01 was completed by synchronizing both version declarations to 0.2.0
+before the formal release. No version bump or version-source refactor is part
+of ED-036. ED-031 and ED-032 remain closed.

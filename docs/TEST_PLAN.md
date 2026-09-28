@@ -1,10 +1,11 @@
 # v0.2 Test Plan
 
-This plan covers the frozen Endpoint Doctor v0.2 scope summarized in
-[V0.2_SPEC.md](V0.2_SPEC.md). It describes required validation, not a claim that
-every release gate has passed. See [the release checklist](RELEASE_CHECKLIST.md)
-for evidence status. ED-031 and ED-032 remain closed; ED-033 does not rerun or
-reopen them.
+This plan describes validation methods and historical release evidence for the
+frozen Endpoint Doctor v0.2.0 scope in [V0.2_SPEC.md](V0.2_SPEC.md). The final
+release was completed on **2026-09-28**, with status **CLOSED / PASS**. See
+[the release checklist](RELEASE_CHECKLIST.md) for the completed acceptance
+record. ED-031 and ED-032 remain closed; this documentation reconciliation
+does not rerun or reopen them.
 
 ## 1. Unit testing
 
@@ -86,8 +87,8 @@ sanitized command/results evidence.
 ED-032 Windows clean-install testing is **CLOSED / PASS**. The supplied ED-032
 acceptance evidence records local wheel + sdist build PASS, Windows Basic real
 endpoint smoke PASS, clean-wheel integration **43 passed**, critical Deep smoke
-PASS and no secret leak observed. These are prior observations, not new ED-033
-test runs.
+PASS and no secret leak observed. These remain historical ED-032 observations,
+separate from the subsequent formal RC and production-install acceptance.
 
 ### TESTENV-01: observed Windows QA harness
 
@@ -99,22 +100,25 @@ test runs.
 
 These are **test dependencies, not ApiWells runtime dependencies**. They describe
 the observed Windows clean-wheel integration environment, not a new supported
-dependency matrix. ED-033 neither adds them to runtime dependencies nor chooses
-a new dev-dependency packaging or management mechanism.
+dependency matrix. This record does not add them to runtime dependencies or
+choose a new dev-dependency packaging or management mechanism.
 
 ## 6. Cross-platform testing
 
-Validate the release candidate on Windows, macOS and Linux, including shell
-entry points, environment-key handling, TLS/proxy behavior, JSON encoding and
-exit codes. macOS and Linux each require installation, `--version`, `--help`,
-Basic smoke and the mock suite. Each platform run records OS, Python version
-and the tested artifact. Python must satisfy the declared `>=3.10` requirement.
-The Frozen Scope requires the specified Windows/macOS/Linux validation, not an
-exhaustive OS × Python-version matrix.
+The cross-platform validation method covers Windows, macOS and Linux,
+including shell entry points, environment-key handling, TLS/proxy behavior,
+JSON encoding and exit codes. macOS and Linux checks include installation,
+`--version`, `--help`, Basic smoke and the mock suite. Record whether a smoke
+test uses a local mock or a real provider. Each platform run records OS, Python
+version and the tested artifact. Python must satisfy the declared `>=3.10`
+requirement. The Frozen Scope requires the specified Windows/macOS/Linux
+validation, not an exhaustive OS × Python-version matrix.
 
-Windows development-build acceptance is supported by ED-032. Remaining required
-platform validation and RC acceptance stay open until corresponding evidence
-exists. Historical 0.1.0 validation does not certify a v0.2 RC.
+Ubuntu, Windows and macOS CI completed with **PASS**. Windows formal RC
+acceptance also completed with **PASS**, separately from historical ED-032
+acceptance. Cross-platform CI PASS does not establish macOS/Linux real-provider
+live validation. The production real-provider Basic smoke is separate evidence
+and does not replace ED-031 capability measurements.
 
 ## 7. Release evidence
 
@@ -123,10 +127,26 @@ provide credentials through environment variables or managed CI secrets.
 Keep unit/mock/secret-test summaries, sanitized compatibility records,
 build/metadata checks, artifact hashes and clean-install/platform results tied
 to the tested commit and artifact. Record failures and limitations as well as
-passes. Before formal RC/final artifacts, synchronize both version declarations
-to 0.2.0; they remain 0.1.0 in ED-033 (VERSION-01). A single version source is
-not decided here.
+passes. Both package version declarations were synchronized to **0.2.0** for
+the formal release. This documentation pass changes neither version declaration
+nor the version-source design.
 
-TestPyPI, RC artifact/clean-install acceptance, remaining required validation,
-final PyPI release and post-release PyPI clean-install smoke are future gates,
-tracked in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+The following completed evidence was established during the v0.2.0 release
+process and post-release production acceptance. ED-036 records that existing
+evidence here; these are not new test runs performed by this documentation pass:
+
+| Stage | Completed evidence |
+|---|---|
+| ED-031 | Point-in-time real-endpoint capability certification; original build versions, dates and PASS/PARTIAL outcomes preserved |
+| ED-032 | Windows clean-wheel acceptance, including 43 integration tests and critical Deep smoke |
+| ED-034 | Windows formal RC acceptance; wheel/sdist builds and twine check; TestPyPI publication, artifact identity, clean install and Basic smoke |
+| Cross-platform CI | Ubuntu, Windows and macOS PASS; not a claim of macOS/Linux real-provider validation |
+| ED-035 | Annotated v0.2.0 tag, production PyPI publication and canonical artifact identity PASS |
+| Production post-release acceptance | Fresh PyPI install, CLI version/help, doctor help, pip check, real-provider Basic smoke, v2 JSON contract, secret safety, temporary key cleanup and the five-minute onboarding target PASS |
+
+Unit, mock integration and secret leak validation passed as part of the
+completed release acceptance. Final release status is **CLOSED / PASS**.
+The canonical release source, tag, artifact hashes and completed checklist are
+in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Historical compatibility
+evidence remains authoritative for its recorded tests and is not overwritten
+by later Basic smoke or CI results.

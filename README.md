@@ -4,9 +4,9 @@ A Local-First CLI for diagnosing OpenAI-compatible model API endpoints from
 your machine. Endpoint Doctor checks connectivity and protocol capabilities;
 it does not score model quality. Python 3.10+ is required.
 
-This checkout is a **v0.2 development build**. The installed package and CLI
-version remain **0.1.0**; v0.2.0 has not been released. Runtime dependencies
-include `jsonschema` for Structured Output validation.
+ApiWells Endpoint Doctor **v0.2.0** is the current released version, published
+to PyPI on **2026-09-28**. Runtime dependencies include `jsonschema` for
+Structured Output validation.
 
 ## Install
 
@@ -17,8 +17,11 @@ python -m pip install apiwells
 apiwells --version
 ```
 
-The current repository contains v0.2 development work but remains at version
-0.1.0 until RC version synchronization. v0.2.0 has not been released to PyPI.
+Expected version output:
+
+```text
+apiwells 0.2.0
+```
 
 Install this local checkout with:
 
@@ -26,7 +29,7 @@ Install this local checkout with:
 python -m pip install .
 ```
 
-The checkout's version command currently prints `apiwells 0.1.0`.
+The v0.2.0 release checkout reports the same package and CLI version.
 
 ## Basic Doctor
 
@@ -174,6 +177,6 @@ For test coverage and the observed QA harness dependencies, see
 python -m pytest tests -q
 ```
 
-See [the release checklist](docs/RELEASE_CHECKLIST.md) for completed evidence
-and pending release gates, and [the changelog](CHANGELOG.md) for changes.
+See [the release checklist](docs/RELEASE_CHECKLIST.md) for the completed v0.2.0
+release evidence, and [the changelog](CHANGELOG.md) for changes.
 License: MIT.

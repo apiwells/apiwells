@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased — v0.2 development
+## Unreleased
 
-The package and CLI remain at 0.1.0 (v0.2 development build); v0.2.0 has not
-been released.
+No unreleased changes are recorded yet.
+
+## 0.2.0 — 2026-09-28
 
 - Add Basic connectivity/authentication/models diagnostics and explicit-model
   Deep capability diagnostics while retaining legacy `--chat` behavior.
@@ -20,7 +21,11 @@ been released.
 - Validate local wheel/sdist packaging and Windows clean installation, including
   Basic and critical Deep smoke checks and 43 clean-wheel integration tests.
 - Document Local-First/no-telemetry behavior, security boundaries, test coverage
-  and remaining release gates.
+  and completed release validation.
+- Complete RC/TestPyPI acceptance and cross-platform CI on Ubuntu, Windows and
+  macOS; publish to production PyPI and verify artifact identity, clean
+  installation, CLI/JSON contracts, real-provider Basic smoke, secret safety
+  and the five-minute onboarding target.
 
 ## 0.1.0
 - Add a single-request models endpoint check and opt-in text chat smoke check.
