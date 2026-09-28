@@ -4,6 +4,15 @@
 
 No unreleased changes are recorded yet.
 
+## 0.2.1 — 2026-09-28
+
+- Correct the PyPI-facing README and package metadata.
+- Make the README and v0.2 specification patch-version-neutral.
+- Add verified repository and issue project URLs.
+- Replace repository-relative README documentation links with PyPI-safe
+  absolute GitHub links.
+- No runtime diagnostic behavior changes.
+
 ## 0.2.0 — 2026-09-28
 
 - Add Basic connectivity/authentication/models diagnostics and explicit-model
