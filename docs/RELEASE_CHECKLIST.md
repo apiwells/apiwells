@@ -39,14 +39,14 @@ v0.2 RC acceptance.
 | D — Security | Secret Leak Test passes; any complete credential leak blocks release | No leak observed in accepted validation; retain the dedicated release test evidence before final acceptance |
 | E — Real Providers | At least 3 independent providers/endpoints covering 3–5 Chinese models | PASS: closed ED-031 records |
 | F — Package | Build wheel + sdist and clean install | PASS for the development build via ED-032; RC/final artifact acceptance remains pending |
-| G — Release Documentation | README, CHANGELOG, SECURITY and the four release documents | Prepared by ED-033; reviewer acceptance pending |
+| G — Release Documentation | README, CHANGELOG, SECURITY and the four release documents | PASS — ED-033 documentation reviewed and accepted |
 
 ## Documentation acceptance (ED-033)
 
 - [x] Reconcile the release-facing specification/checklist with the supplied
   frozen specification and current CLI compatibility behavior.
-- [ ] Reviewer acceptance of README, changelog, security guidance, specification,
-  test plan, compatibility index and this checklist (Gate G).
+- [x] Reviewer acceptance of README, changelog, security guidance, specification,
+  test plan, compatibility index and this checklist (Gate G): PASS.
 
 TESTENV-01: the observed Windows harness used pytest **9.1.1**,
 pytest-httpserver **1.1.5** and Werkzeug **3.1.8**. These are test dependencies,
