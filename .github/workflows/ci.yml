@@ -1,0 +1,78 @@
+﻿name: CI
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python 3.12
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install QA and build tooling
+        run: >
+          python -m pip install
+          "build==1.6.0"
+          "twine==7.0.0"
+          "pytest==9.1.1"
+          "pytest-httpserver==1.1.5"
+          "Werkzeug==3.1.8"
+
+      - name: Build wheel and sdist
+        run: python -m build
+
+      - name: Verify package metadata
+        run: >
+          python -m twine check
+          dist/apiwells-0.2.0-py3-none-any.whl
+          dist/apiwells-0.2.0.tar.gz
+
+      - name: Install built wheel
+        run: >
+          python -m pip install
+          dist/apiwells-0.2.0-py3-none-any.whl
+
+      - name: Verify installed package
+        run: |
+          python -m pip check
+          python -c "import apiwells; assert apiwells.__version__ == '0.2.0'; print(apiwells.__file__)"
+          apiwells --version
+          apiwells --help
+          apiwells doctor --help
+
+      - name: Unit tests
+        run: >
+          python -m pytest
+          tests
+          --ignore=tests/integration
+          -q
+
+      - name: Mock integration and Basic CLI flow
+        run: >
+          python -m pytest
+          tests/integration
+          -q
