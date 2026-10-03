@@ -24,8 +24,8 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/apiwells/endpoint-doctor"
-Issues = "https://github.com/apiwells/endpoint-doctor/issues"
+Repository = "https://github.com/apiwells/apiwells"
+Issues = "https://github.com/apiwells/apiwells/issues"
 
 [project.scripts]
 apiwells = "apiwells.cli:main"

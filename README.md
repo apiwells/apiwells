@@ -1,8 +1,10 @@
-# ApiWells Endpoint Doctor
+# ApiWells
 
-A Local-First CLI for diagnosing OpenAI-compatible model API endpoints from
-your machine. Endpoint Doctor checks connectivity and protocol capabilities;
-it does not score model quality. Python 3.10+ is required.
+ApiWells is the Python package and CLI for ApiWells developer tooling.
+Its current public capability, Endpoint Doctor, is a Local-First CLI for
+diagnosing OpenAI-compatible model API endpoints from your machine. Endpoint
+Doctor checks connectivity and protocol capabilities; it does not score model
+quality. Python 3.10+ is required.
 
 Runtime dependencies include `jsonschema` for Structured Output validation.
 
@@ -149,26 +151,26 @@ streaming TTFT.
 - Test only endpoints you are authorized to test. Private/local destinations are
   intentionally allowed; this CLI is not an unrestricted server-side URL fetcher.
 
-See [Security](https://github.com/apiwells/endpoint-doctor/blob/main/SECURITY.md) for handling and reporting guidance.
+See [Security](https://github.com/apiwells/apiwells/blob/main/SECURITY.md) for handling and reporting guidance.
 
 ## Compatibility and development
 
-[Compatibility](https://github.com/apiwells/endpoint-doctor/blob/main/docs/COMPATIBILITY.md) indexes three point-in-time ED-031 live
+[Compatibility](https://github.com/apiwells/apiwells/blob/main/docs/COMPATIBILITY.md) indexes three point-in-time ED-031 live
 certification records. These establish observed endpoint behavior, not
 universal provider support or model quality.
 
-[The release-facing specification](https://github.com/apiwells/endpoint-doctor/blob/main/docs/V0.2_SPEC.md) summarizes the frozen
+[The release-facing specification](https://github.com/apiwells/apiwells/blob/main/docs/V0.2_SPEC.md) summarizes the frozen
 v0.2 scope. Benchmark, scoring/ranking, recommendations, cost optimization,
 Router, Gateway, long-term Monitoring, Web Dashboard, SaaS accounts, cloud
 telemetry and complete Responses API coverage are outside that scope.
 
 For test coverage and the observed QA harness dependencies, see
-[the test plan](https://github.com/apiwells/endpoint-doctor/blob/main/docs/TEST_PLAN.md). With the test harness installed, run:
+[the test plan](https://github.com/apiwells/apiwells/blob/main/docs/TEST_PLAN.md). With the test harness installed, run:
 
 ```sh
 python -m pytest tests -q
 ```
 
-See [the release checklist](https://github.com/apiwells/endpoint-doctor/blob/main/docs/RELEASE_CHECKLIST.md) for release evidence,
-and [the changelog](https://github.com/apiwells/endpoint-doctor/blob/main/CHANGELOG.md) for version history and changes.
+See [the release checklist](https://github.com/apiwells/apiwells/blob/main/docs/RELEASE_CHECKLIST.md) for release evidence,
+and [the changelog](https://github.com/apiwells/apiwells/blob/main/CHANGELOG.md) for version history and changes.
 License: MIT.

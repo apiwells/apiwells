@@ -187,11 +187,11 @@ real-provider certification.
 
 | Gate | Ubuntu | Windows | macOS | Evidence |
 |---|---|---|---|---|
-| ED-037A branch | PASS | PASS | PASS | [Run 36451428904](https://github.com/apiwells/endpoint-doctor/actions/runs/36451428904) |
-| ED-037A main | PASS | PASS | PASS | [Run 36452855523](https://github.com/apiwells/endpoint-doctor/actions/runs/36452855523) |
-| v0.2.1 release branch | PASS | PASS | PASS | [Run 36499257866](https://github.com/apiwells/endpoint-doctor/actions/runs/36499257866) |
-| v0.2.1 release-source main | PASS | PASS | PASS | [Run 36499636095](https://github.com/apiwells/endpoint-doctor/actions/runs/36499636095) |
-| v0.2.1 tag | PASS | PASS | PASS | [Run 36501015258](https://github.com/apiwells/endpoint-doctor/actions/runs/36501015258) |
+| ED-037A branch | PASS | PASS | PASS | [Run 36451428904](https://github.com/apiwells/apiwells/actions/runs/36451428904) |
+| ED-037A main | PASS | PASS | PASS | [Run 36452855523](https://github.com/apiwells/apiwells/actions/runs/36452855523) |
+| v0.2.1 release branch | PASS | PASS | PASS | [Run 36499257866](https://github.com/apiwells/apiwells/actions/runs/36499257866) |
+| v0.2.1 release-source main | PASS | PASS | PASS | [Run 36499636095](https://github.com/apiwells/apiwells/actions/runs/36499636095) |
+| v0.2.1 tag | PASS | PASS | PASS | [Run 36501015258](https://github.com/apiwells/apiwells/actions/runs/36501015258) |
 
 ED-037A branch/main were first confirmed through human review of GitHub Actions
 UI and subsequently verified through the public Actions API. The release
