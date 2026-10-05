@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -46,6 +47,75 @@ BASIC_RESULTS = [
 
 
 class CliReportingTests(unittest.TestCase):
+    def test_chat_v2_json_is_rejected_before_diagnostics(self):
+        secret = "BUG001-synthetic-test-key"
+        for flags in (
+            ["--v2-json"],
+            ["--json", "--v2-json"],
+            ["--v2-json", "--json"],
+        ):
+            for auth in (
+                ["--anonymous"],
+                ["--api-key-env", "APIWELLS_BUG001_TEST_KEY"],
+                ["--api-key-env", "APIWELLS_BUG001_MISSING_KEY"],
+            ):
+                with self.subTest(flags=flags, auth=auth):
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    with (
+                        patch.dict(os.environ, {
+                            "APIWELLS_BUG001_TEST_KEY": secret,
+                            "APIWELLS_BUG001_MISSING_KEY": "",
+                        }),
+                        patch(
+                            "apiwells.cli.diagnose",
+                            side_effect=AssertionError("Diagnostics must not run"),
+                        ) as diagnose,
+                        patch("apiwells.cli.run_basic_diagnostics") as basic,
+                        patch("apiwells.cli.run_deep_diagnostics") as deep,
+                        contextlib.redirect_stdout(stdout),
+                        contextlib.redirect_stderr(stderr),
+                    ):
+                        with self.assertRaises(SystemExit) as error:
+                            main([
+                                "doctor",
+                                "--base-url", "https://example.com/v1",
+                                "--chat",
+                                "--model", "apiwells-nonexistent-model-contract-test",
+                                *auth,
+                                *flags,
+                            ])
+
+                    self.assertEqual(error.exception.code, 2)
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertIn(
+                        "--v2-json is supported for Basic and Deep diagnostics",
+                        stderr.getvalue(),
+                    )
+                    self.assertIn(
+                        "For legacy --chat, use --json",
+                        stderr.getvalue(),
+                    )
+                    self.assertNotIn(secret, stdout.getvalue() + stderr.getvalue())
+                    diagnose.assert_not_called()
+                    basic.assert_not_called()
+                    deep.assert_not_called()
+
+    def test_doctor_help_explains_v2_json_scope(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+            self.assertRaises(SystemExit) as error,
+        ):
+            main(["doctor", "--help"])
+
+        self.assertEqual(error.exception.code, 0)
+        self.assertEqual(stderr.getvalue(), "")
+        help_text = " ".join(stdout.getvalue().split())
+        self.assertIn("Basic/Deep only; use --json for legacy --chat", help_text)
+
     def test_basic_json_uses_v1_report_contract(self):
         stdout = io.StringIO()
 

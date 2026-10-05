@@ -404,12 +404,21 @@ def main(argv=None):
     p.add_argument(
         "--v2-json",
         action="store_true",
-        help="Print v0.2 structured diagnostic JSON report",
+        help=(
+            "Print v0.2 structured diagnostic JSON report "
+            "(Basic/Deep only; use --json for legacy --chat)"
+        ),
     )
     args = parser.parse_args(argv)
     if args.chat and args.deep:
         p.error(
             "Use either --chat or --deep, not both."
+        )
+
+    if args.chat and args.v2_json:
+        p.error(
+            "--v2-json is supported for Basic and Deep diagnostics. "
+            "For legacy --chat, use --json."
         )
 
     if (

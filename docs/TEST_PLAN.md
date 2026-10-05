@@ -32,6 +32,15 @@ Use `tests/integration/` with the local HTTP mock server. Validate Basic and
 Deep end to end, CLI flag combinations, legacy `--chat` (including the default
 `max_tokens=8`), console/JSON agreement and the exit-code contract.
 
+For BUG-001, verify that `--chat --v2-json` is rejected with exit code 2,
+empty stdout and a stderr explanation directing legacy chat users to `--json`.
+Cover both orders of the two JSON flags, anonymous mode, a synthetic key and
+a missing key; no diagnostic path may run. Check that help states the
+Basic/Deep-only scope. Preserve legacy chat HTTP 404 behavior in both human
+and `--json` modes: one non-stream request, default `max_tokens=8`, exit code 1,
+empty stderr and the existing text/legacy JSON contract. Retain Basic/Deep
+JSON regression coverage.
+
 Exercise successful and failed authentication, missing requested model,
 301/302 redirects, 400/401/403/404/429/500/502/503 responses, invalid JSON/schema, broken and interrupted
 SSE, invalid tool arguments, full tool round trips and Structured Output

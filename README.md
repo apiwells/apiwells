@@ -123,8 +123,11 @@ Each probe includes status, support, summary, metrics, evidence and error code.
 The report schema version is independent of the package version.
 `--json` retains the compatibility report with `ok`; legacy `--chat --json`
 retains its single-check report. Use `--json`, not `--v2-json`, for legacy chat.
-Completed checks produce one JSON object on stdout; usage/configuration errors
-go to stderr and do not produce a JSON report.
+`--chat --v2-json` is rejected before any diagnostic request, including when
+`--json` is also supplied: stdout is empty, stderr explains the supported
+combination, and the exit code is `2`.
+With a supported JSON option, completed checks produce one JSON object on
+stdout; usage/configuration errors go to stderr and do not produce a JSON report.
 
 Error codes distinguish configuration, DNS/TLS/connectivity/timeout, HTTP/auth,
 JSON/schema, SSE/interruption and capability validation failures. They are

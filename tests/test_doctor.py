@@ -116,6 +116,38 @@ class DoctorTests(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
                 main(['doctor','--base-url',self.base,'--anonymous'] + extra)
             self.assertEqual(e.exception.code, 2)
+    def test_cli_legacy_chat_404_output_modes(self):
+        for flags in ([], ['--json']):
+            with self.subTest(flags=flags):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                before = len(Handler.calls)
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    code = main([
+                        'doctor', '--base-url', self.base + '/404', '--anonymous',
+                        '--chat', '--model', 'apiwells-nonexistent-model-contract-test',
+                        *flags,
+                    ])
+                self.assertEqual(code, 1)
+                self.assertEqual(stderr.getvalue(), '')
+                self.assertEqual(len(Handler.calls), before + 1)
+                path, _, body = Handler.calls[-1]
+                self.assertEqual(path, '/404/chat/completions')
+                payload = json.loads(body)
+                self.assertEqual(payload['model'], 'apiwells-nonexistent-model-contract-test')
+                self.assertEqual(payload['max_tokens'], 8)
+                self.assertFalse(payload['stream'])
+                if flags:
+                    report = json.loads(stdout.getvalue())
+                    self.assertEqual(report['schema_version'], 1)
+                    self.assertEqual(report['check'], 'chat')
+                    self.assertFalse(report['ok'])
+                    self.assertEqual(report['http_status'], 404)
+                    self.assertEqual(report['category'], 'not_found')
+                    self.assertNotIn('probes', report)
+                else:
+                    self.assertIn('FAIL chat HTTP=404', stdout.getvalue())
+                    self.assertIn('[not_found]', stdout.getvalue())
+                    self.assertIn('Check base path and model name', stdout.getvalue())
     def test_missing_key(self):
         with patch.dict(os.environ, {}, clear=True), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
             main(['doctor','--base-url',self.base])

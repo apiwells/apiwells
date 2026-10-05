@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-No unreleased changes are recorded yet.
+- Fix BUG-001: reject unsupported `doctor --chat --v2-json` combinations before
+  reading the API key or sending requests, including when `--json` is also set.
+  These combinations now exit 2 with empty stdout and an explanatory stderr
+  message instead of silently producing legacy output.
+- Clarify that `--v2-json` supports Basic/Deep only; legacy chat continues to
+  support human output and `--json`.
 
 ## 0.2.1 — 2026-09-28
 
