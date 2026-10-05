@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No unreleased changes are recorded yet.
+
+## 0.2.2 — 2026-10-05
+
 - Fix BUG-001: reject unsupported `doctor --chat --v2-json` combinations before
   reading the API key or sending requests, including when `--json` is also set.
   These combinations now exit 2 with empty stdout and an explanatory stderr
