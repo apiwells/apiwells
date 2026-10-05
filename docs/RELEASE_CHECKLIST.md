@@ -105,7 +105,7 @@ VERSION-01 was completed by synchronizing both version declarations to 0.2.0
 before the formal release. No version bump or version-source refactor is part
 of ED-036. ED-031 and ED-032 remain closed.
 
-## v0.2.1 Patch Release
+# v0.2.1 Patch Release
 
 Release type: **Documentation / Package Metadata Correction**
 
@@ -125,7 +125,7 @@ difference from v0.2.0 is package version identity. Runtime dependencies,
 tests, CLI arguments and JSON contracts are unchanged. ED-037A separately
 made CI package checks version-neutral; that is release engineering only.
 
-### v0.2.1 canonical artifacts
+## v0.2.1 canonical artifacts
 
 | Artifact | Filename | Size |
 |---|---|---:|
@@ -144,7 +144,7 @@ Canonical artifacts were built once from the frozen source. Local artifacts,
 TestPyPI 0.2.1 and Production PyPI 0.2.1 have identical hashes. No canonical
 artifact was rebuilt after TestPyPI acceptance.
 
-### v0.2.1 completed release checklist
+## v0.2.1 completed release checklist
 
 - [x] Package and CLI version synchronized to **0.2.1**.
 - [x] README is patch-version-neutral.
@@ -180,7 +180,7 @@ artifact was rebuilt after TestPyPI acceptance.
 - [x] Temporary `APIWELLS_TEST_KEY` removed; subsequent environment check false.
 - [x] ED-037 final release: **CLOSED / PASS**.
 
-### v0.2.1 CI evidence
+## v0.2.1 CI evidence
 
 All jobs below used Python 3.12. These are CI results, not macOS/Linux
 real-provider certification.
@@ -198,7 +198,7 @@ UI and subsequently verified through the public Actions API. The release
 branch, release-source main and tag results were read through the Actions API.
 The final documentation commit's CI result is recorded in the release handoff.
 
-### Production propagation observation
+## Production propagation observation
 
 **First clean-install attempt: FAIL.** Immediately after publication, pip's
 normal Production index resolution listed only 0.1.0 and 0.2.0 and returned
@@ -218,7 +218,7 @@ environment's `site-packages`, not the source checkout. CLI checks and
 The observed sequence is consistent with publication/index propagation timing,
 but the release record does not claim a definitive root cause.
 
-### v0.2.1 production Basic and secret-safety evidence
+## v0.2.1 production Basic and secret-safety evidence
 
 Only Basic console and Basic `--v2-json` checks were run against the previously
 validated Alibaba Cloud Model Studio endpoint. URL, DNS, TLS and HTTP were
@@ -239,3 +239,143 @@ rerun. ED-031 historical compatibility evidence was not modified. TestPyPI
 
 This documentation closeout follows the release source on main; it does not
 move the v0.2.1 tag or change any published artifact.
+
+# v0.2.2 Patch Release
+
+Release type: **Runtime CLI Contract Fix**
+
+Release date: **2026-10-05 (America/New_York)**
+
+Release status: **CLOSED / PASS**
+
+Release source: `3679c406ebe24c035f877632057d6e43914ca41e`
+
+Release tag: `v0.2.2` (annotated; remains on the release source commit)
+
+Production package: `apiwells==0.2.2`
+
+Scope: fix BUG-001 by rejecting unsupported legacy `--chat --v2-json`
+combinations before API key access or diagnostic execution. Legacy `--chat`
+human output and `--chat --json` remain supported. Basic/Deep `--v2-json`
+behavior, ProbeResult semantics, reporters, JSON schema, network probes and
+capability probes were not expanded or redesigned.
+
+## v0.2.2 canonical artifacts
+
+| Artifact | Filename |
+|---|---|
+| Wheel | `apiwells-0.2.2-py3-none-any.whl` |
+| sdist | `apiwells-0.2.2.tar.gz` |
+
+Wheel SHA256:
+
+`8B48C2F6766713E1A856B17E578759866533FF644F85E2A1155A16C964D8136C`
+
+sdist SHA256:
+
+`01FD19F608036D4F2DCD4F713D410280F86692C4953AC175E39F8D5A5BBB0B4C`
+
+The canonical artifacts were built once from the frozen release source.
+Local artifacts, TestPyPI artifacts and Production PyPI artifacts had identical
+SHA256 hashes. The canonical artifacts were not rebuilt after TestPyPI
+acceptance.
+
+## v0.2.2 completed release checklist
+
+- [x] BUG-001 root cause identified.
+- [x] Unsupported `--chat --v2-json` combination rejected before diagnostics.
+- [x] Unsupported `--chat --json --v2-json` combination rejected before diagnostics.
+- [x] Unsupported combinations return exit code 2.
+- [x] Unsupported combinations produce empty stdout and explanatory stderr.
+- [x] Legacy `--chat` human output preserved.
+- [x] Legacy `--chat --json` contract preserved.
+- [x] Basic/Deep `--v2-json` contract preserved.
+- [x] Package and CLI version synchronized to **0.2.2**.
+- [x] Full local regression: **293 passed, 70 subtests passed**.
+- [x] Canonical wheel and sdist built.
+- [x] `twine check --strict`: both artifacts PASS.
+- [x] Fresh canonical-wheel install PASS.
+- [x] Fresh sdist install PASS.
+- [x] Local wheel and sdist `pip check` PASS.
+- [x] BUG-001 canonical-wheel smoke PASS.
+- [x] BUG-001 sdist smoke PASS.
+- [x] Release-source main CI — Ubuntu / Windows / macOS PASS.
+- [x] TestPyPI 0.2.2 publication.
+- [x] TestPyPI artifact identity PASS.
+- [x] TestPyPI fresh clean install PASS.
+- [x] TestPyPI `pip check` PASS.
+- [x] TestPyPI BUG-001 smoke PASS.
+- [x] Annotated `v0.2.2` tag created and pushed.
+- [x] Tag CI — Ubuntu / Windows / macOS PASS.
+- [x] Production PyPI 0.2.2 publication.
+- [x] Production artifact identity PASS.
+- [x] Production fresh clean install PASS.
+- [x] Production package import identity from fresh environment `site-packages`.
+- [x] Production `apiwells --version`: **apiwells 0.2.2**.
+- [x] Production `python -m apiwells --version`: **apiwells 0.2.2**.
+- [x] Production `pip check`: **No broken requirements found.**
+- [x] Production BUG-001 smoke PASS.
+- [x] Production real-provider Basic console smoke PASS.
+- [x] Production real-provider Basic `--v2-json` smoke PASS.
+- [x] Production JSON `schema_version`: **1**.
+- [x] Production JSON `apiwells_version`: **0.2.2**.
+- [x] Production Basic probes: `url`, `dns`, `tls`, `http`, `auth`, `models`.
+- [x] Production Basic overall status: **PASS**.
+- [x] Exact API key absent from captured stdout/stderr.
+- [x] Temporary `QWEN_API_KEY` removed after validation.
+- [x] Final release: **CLOSED / PASS**.
+
+## v0.2.2 CI evidence
+
+All jobs below used Python 3.12. These are CI results, not Linux/macOS
+real-provider certification.
+
+| Gate | Ubuntu | Windows | macOS | Evidence |
+|---|---|---|---|---|
+| v0.2.2 release-source main | PASS | PASS | PASS | Run `37303716450` |
+| v0.2.2 tag | PASS | PASS | PASS | Run `37306593222` |
+
+## v0.2.2 production acceptance
+
+A fresh Windows Conda environment using Python 3.12 installed
+`apiwells==0.2.2` directly from the Production PyPI Simple Index with
+`--no-cache-dir`.
+
+The imported package came from the fresh environment's `site-packages`.
+Package metadata, module `__version__`, `apiwells --version` and
+`python -m apiwells --version` all reported **0.2.2**.
+
+BUG-001 production smoke confirmed that legacy `--chat --v2-json` is rejected
+before diagnostic execution with exit code **2**, empty stdout and explanatory
+stderr.
+
+Real-provider Basic console and Basic `--v2-json` checks were run against the
+previously validated Alibaba Cloud Model Studio Singapore workspace endpoint.
+URL, DNS, TLS and HTTP were PASS; Authentication and `/models` were
+PASS / SUPPORTED; overall status was PASS. Both commands exited **0** with
+zero stderr bytes.
+
+The JSON report contained `schema_version: "1"`,
+`apiwells_version: "0.2.2"`, `overall_status: "PASS"` and six ordered probes:
+`url`, `dns`, `tls`, `http`, `auth`, `models`.
+
+The exact API key was not present in captured console or JSON stdout/stderr.
+The temporary `QWEN_API_KEY` environment variable was removed after testing
+and its absence was verified.
+
+## v0.2.2 evidence boundaries
+
+This patch release does not constitute a full Deep real-provider
+recertification. Streaming, Tool Calling and Structured Output were not rerun
+as part of Production release acceptance because BUG-001 changed CLI argument
+validation rather than those probe implementations.
+
+The observed `/models` count and latency measurements are point-in-time
+provider/network observations and are not release invariants.
+
+Ubuntu/macOS CI PASS establishes cross-platform build/test compatibility only;
+it is not Ubuntu/macOS real-provider certification.
+
+This documentation closeout follows the frozen release source and annotated
+tag. It does not move `v0.2.2`, rebuild canonical artifacts or alter the
+Production PyPI release.
