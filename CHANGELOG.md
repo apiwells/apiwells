@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.3 — 2026-10-09
+
 - Fix Deep Runner generation-budget propagation so Tool Calling receives the
   configured `max_tokens` value instead of unintentionally using its 32-token
   direct-use default. This prevents reasoning-enabled models from being

@@ -380,13 +380,19 @@ This documentation closeout follows the frozen release source and annotated
 tag. It does not move `v0.2.2`, rebuild canonical artifacts or alter the
 Production PyPI release.
 
-# v0.2.3 Patch Release Preparation
+# v0.2.3 Patch Release
 
 Release type: **Runtime Capability Diagnostic Fix**
 
-Release status: **PRE-RELEASE / HUMAN REVIEW PENDING**
+Release date: **2026-10-09 (America/New_York)**
 
-Target package: `apiwells==0.2.3`
+Release status: **CLOSED / PASS**
+
+Release source: `4a33a5a62b204f271811df547efe91e9c2c67fea`
+
+Release tag: `v0.2.3` (annotated; remains on the release source commit)
+
+Production package: `apiwells==0.2.3`
 
 Scope: correct Deep Tool Calling generation-budget propagation and improve
 Structured Output sub-capability discovery after a sufficiently specific
@@ -394,79 +400,147 @@ feature-related strict-format rejection. Preserve existing CLI syntax, exit
 codes, dependencies, public Python signatures, error-code enum and top-level
 JSON report schema.
 
-## v0.2.3 completed preparation evidence
+## v0.2.3 canonical artifacts
+
+| Artifact | Filename | SHA256 |
+|---|---|---|
+| Wheel | `apiwells-0.2.3-py3-none-any.whl` | `68a36471a4429378653f621841d4f38eec27b2f66f860fab503d5f3804ed7324` |
+| sdist | `apiwells-0.2.3.tar.gz` | `3f60aca2c03840b9c1f4b0ee8be6a744da20267eb8e2fd373148658a19417aaa` |
+
+The canonical artifacts were built once from the frozen release source.
+Local canonical artifacts, TestPyPI artifacts and Production PyPI artifacts
+had identical SHA256 identities. The canonical artifacts were not rebuilt
+after human artifact approval.
+
+## v0.2.3 completed release checklist
 
 - [x] Tool Calling root cause identified.
 - [x] Structured Output root cause identified.
-- [x] Tool Calling code fix reviewed.
-- [x] Structured Output code fix reviewed.
-- [x] Targeted automated tests pass.
-- [x] Full local regression before version synchronization: **297 passed, 72 subtests passed**.
-- [x] Real DeepSeek Tool Calling regression validation: **PASS / SUPPORTED**.
-- [x] Real DeepSeek Structured Output regression validation: **PARTIAL / UNKNOWN**, with `json_object` **SUPPORTED**.
-- [x] Overall real DeepSeek validation observed **PARTIAL**.
-- [x] Live CLI exit code **1**, consistent with the existing PARTIAL contract.
-- [x] No error-code enum change.
+- [x] Tool Calling implementation fix reviewed.
+- [x] Structured Output implementation fix reviewed.
+- [x] Version identity synchronized to **0.2.3**.
+- [x] Full local regression: **297 passed, 72 subtests passed**.
+- [x] Human implementation review PASS.
+- [x] Real DeepSeek source-level regression validation PASS.
+- [x] Release documentation human review PASS.
+- [x] Candidate artifact build and clean-install acceptance PASS.
+- [x] Release-source commit created.
+- [x] Release-source main CI — Ubuntu / Windows / macOS PASS.
+- [x] Canonical wheel and sdist built from the frozen release source.
+- [x] Canonical `twine check --strict` PASS.
+- [x] Canonical wheel clean-install acceptance PASS.
+- [x] Canonical sdist clean-install acceptance PASS.
+- [x] Canonical artifact human review PASS.
+- [x] TestPyPI 0.2.3 publication.
+- [x] TestPyPI wheel and sdist identities match canonical artifacts.
+- [x] TestPyPI download-back byte identity PASS.
+- [x] TestPyPI fresh clean install PASS.
+- [x] TestPyPI `pip check` PASS.
+- [x] TestPyPI CLI/version/import acceptance PASS.
+- [x] TestPyPI-installed DeepSeek Tool Calling: **PASS / SUPPORTED**.
+- [x] TestPyPI-installed DeepSeek Structured Output: **PARTIAL / UNKNOWN**, with `json_object` **SUPPORTED**.
+- [x] Annotated `v0.2.3` tag created and pushed.
+- [x] Tag points to release source `4a33a5a62b204f271811df547efe91e9c2c67fea`.
+- [x] Tag CI — Ubuntu / Windows / macOS PASS.
+- [x] Production PyPI 0.2.3 publication.
+- [x] Production wheel identity matches canonical artifact.
+- [x] Production sdist identity matches canonical artifact.
+- [x] Production download-back artifact identity PASS.
+- [x] Production fresh wheel install PASS.
+- [x] Production `pip check`: **No broken requirements found.**
+- [x] Production package import identity from fresh environment `site-packages`.
+- [x] Production `apiwells --version`: **apiwells 0.2.3**.
+- [x] Production `python -m apiwells --version`: **apiwells 0.2.3**.
+- [x] Legacy `--chat --v2-json` regression: exit **2**, empty stdout, explanatory stderr.
+- [x] Production real-provider Deep validation completed against DeepSeek Official.
+- [x] Production Tool Calling: **PASS / SUPPORTED**, complete two-request round trip.
+- [x] Production Structured Output: **PARTIAL / UNKNOWN**; strict `json_schema` rejected with `feature_rejected`, `json_object` **SUPPORTED**.
+- [x] Production overall Deep result: **PARTIAL**, CLI exit **1** as defined by the existing contract.
+- [x] Temporary `DEEPSEEK_API_KEY` removed after validation.
 - [x] No CLI syntax change.
-- [x] No dependency change.
-- [x] Version identity synchronized to **0.2.3** in the local candidate source.
-- [x] Post-version-bump full regression: **297 passed, 72 subtests passed**.
+- [x] No exit-code contract change.
+- [x] No runtime dependency change.
+- [x] No public Python signature change.
+- [x] No error-code enum change.
+- [x] Historical compatibility evidence preserved.
+- [x] Final release: **CLOSED / PASS**.
 
-## v0.2.3 point-in-time patch regression evidence
+## v0.2.3 CI evidence
 
-The following sanitized evidence was observed on **2026-10-08** using DeepSeek
-Official, `https://api.deepseek.com`, model `deepseek-flash`, with 0.2.2 package
-identity plus the accepted local 0.2.3 candidate fix. This is patch-regression
-evidence, not a provider guarantee, benchmark, performance certification or
-replacement for MODEL-0001.
+All jobs below used Python 3.12. CI results establish cross-platform
+build/test compatibility; they are not Linux/macOS real-provider
+certification.
 
-| Capability | Observed result |
-|---|---|
-| Tool Calling | PASS / SUPPORTED; 2 requests; first/second HTTP 200; round trip completed; first finish reason `tool_calls`; reasoning content present; first completion tokens 61 |
-| Structured Output | PARTIAL / UNKNOWN; 2 requests; strict `json_schema` HTTP 400, rejected, UNKNOWN, `feature_rejected`; `json_object` HTTP 200, accepted, SUPPORTED, parsed JSON object |
-| Overall / CLI | PARTIAL; exit code 1 |
+| Gate | Ubuntu | Windows | macOS | Evidence |
+|---|---|---|---|---|
+| v0.2.3 release-source main | PASS | PASS | PASS | Run `37877794642` |
+| v0.2.3 tag | PASS | PASS | PASS | Run `37889394458` |
 
-No API key, Authorization value, local diagnostic tool token, raw reasoning,
-provider request ID or unnecessary network/latency detail is recorded here.
+## v0.2.3 Production acceptance
 
-## v0.2.3 candidate artifact acceptance
+Production PyPI published exactly two `0.2.3` artifacts:
 
-The following Phase 2 results apply only to the **candidate artifacts**. They
-are preparation evidence, not canonical release acceptance, and the artifacts
-must not be reused as the canonical release build.
+- `apiwells-0.2.3-py3-none-any.whl`
+- `apiwells-0.2.3.tar.gz`
 
-- [x] Release documentation final human review.
-- [x] Candidate wheel build PASS.
-- [x] Candidate sdist build PASS.
-- [x] Candidate `twine check --strict` PASS.
-- [x] Candidate wheel clean install PASS.
-- [x] Candidate sdist clean install PASS.
-- [x] Candidate wheel `pip check` PASS.
-- [x] Candidate sdist `pip check` PASS.
-- [x] Candidate wheel CLI/version/import identity PASS.
-- [x] Candidate sdist CLI/version/import identity PASS.
-- [x] Candidate artifacts contain the accepted Tool Calling fix.
-- [x] Candidate artifacts contain the accepted Structured Output fix.
-- [x] Candidate source fingerprint unchanged after artifact validation.
-- [x] Candidate implementation/test file hashes unchanged.
-- [x] Human Phase-2 artifact review PASS.
+Their Production PyPI SHA256 identities matched the frozen canonical artifact
+hashes.
 
-Candidate artifact hashes (not canonical release hashes):
+A fresh Windows Python 3.12 virtual environment installed the
+Production-PyPI-downloaded wheel. Package metadata, module `__version__`,
+`apiwells --version` and `python -m apiwells --version` all reported
+**0.2.3**. The imported package came from the fresh environment's
+`site-packages`, and `pip check` reported no broken requirements.
 
-- Wheel SHA256: `660c72f13ed103706d5871b3d502b4b85f12bc1e0ac8d8e14cb4a88830d8d705`
-- sdist SHA256: `89ba9965792912cc5760854e6e9ca3d4ee098fad8de80d2dd15334b7024ffe78`
+The legacy `--chat --v2-json` rejection contract remained intact: exit code
+**2**, empty stdout and explanatory stderr, before diagnostic network
+execution.
 
-## v0.2.3 remaining release gates
+A Production-installed real-provider Deep validation was run against
+DeepSeek Official, `https://api.deepseek.com`, model `deepseek-flash`,
+with `--max-tokens 512`.
 
-- [ ] Canonical wheel build.
-- [ ] Canonical sdist build.
-- [ ] Canonical artifact `twine check`.
-- [ ] Canonical clean-install acceptance.
-- [ ] Release-source CI.
-- [ ] Commit.
-- [ ] Annotated tag.
-- [ ] Push.
-- [ ] TestPyPI.
-- [ ] Production PyPI.
-- [ ] Production clean-install acceptance.
-- [ ] Final release **CLOSED / PASS**.
+Observed Tool Calling:
+
+- **PASS / SUPPORTED**
+- complete two-request round trip
+- first and second requests returned HTTP 200
+- tool call observed and validated
+- final round trip completed
+
+Observed Structured Output:
+
+- **PARTIAL / UNKNOWN**
+- strict `json_schema` request returned HTTP 400
+- strict-schema support remained `UNKNOWN`
+- rejection classified as `feature_rejected`
+- independent `json_object` sub-test returned HTTP 200
+- `json_object` support observed as `SUPPORTED`
+- returned content parsed as a JSON object
+
+Overall Deep status was **PARTIAL**, and CLI exit code **1** was consistent
+with the existing PARTIAL contract.
+
+The temporary `DEEPSEEK_API_KEY` environment variable was removed after the
+Production validation.
+
+## v0.2.3 evidence boundaries
+
+The DeepSeek observations above are point-in-time runtime evidence, not a
+permanent provider capability guarantee, benchmark or performance
+certification.
+
+The release does not claim that DeepSeek permanently lacks strict
+`json_schema` support. The observed HTTP 400 is retained as a
+feature-related rejection with strict-schema support `UNKNOWN`.
+
+Likewise, the successful Tool Calling result establishes a valid runtime
+round trip under the tested endpoint, model and request configuration; it is
+not a permanent reliability guarantee.
+
+Historical MODEL-0001, MODEL-0002, MODEL-0003 and compatibility-matrix results
+remain unchanged.
+
+This documentation closeout follows the frozen release source and annotated
+`v0.2.3` tag. It does not move the tag, rebuild canonical artifacts or alter
+the Production PyPI release.
