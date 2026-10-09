@@ -112,12 +112,20 @@ class ToolHandler(BaseHTTPRequestHandler):
             raw = {
                 "choices": [
                     {
+                        "finish_reason": "length",
                         "message": {
                             "role": "assistant",
                             "content": "42",
+                            "reasoning_content": (
+                                "fixture-private-reasoning"
+                            ),
                         }
                     }
-                ]
+                ],
+                "usage": {
+                    "completion_tokens": 32,
+                    "total_tokens": 80,
+                },
             }
 
         elif prefix == "badname":
@@ -367,6 +375,41 @@ class ToolCallingProbeTests(unittest.TestCase):
             "TOOL_CALL_INVALID",
         )
 
+        self.assertFalse(
+            result.evidence["tool_call_observed"]
+        )
+
+        self.assertEqual(
+            result.evidence["tool_call_validation"],
+            "not_observed",
+        )
+
+        self.assertEqual(
+            result.evidence["first_finish_reason"],
+            "length",
+        )
+
+        self.assertEqual(
+            result.evidence["first_completion_tokens"],
+            32,
+        )
+
+        self.assertEqual(
+            result.evidence["first_total_tokens"],
+            80,
+        )
+
+        self.assertTrue(
+            result.evidence[
+                "first_reasoning_content_present"
+            ]
+        )
+
+        self.assertNotIn(
+            "fixture-private-reasoning",
+            repr(result),
+        )
+
         self.assertEqual(
             len(ToolHandler.calls),
             1,
@@ -561,7 +604,11 @@ def test_runtime_round_trip_preserves_complete_message(reasoning):
                 }
                 for value in values:
                     assert value not in json.dumps(payload)
-                return 200, {"choices": [{"message": first_message}]}, None
+                return 200, {
+                    "choices": [{"message": first_message}],
+                    "raw_response": "fixture-private-raw-response",
+                    "authorization": "Bearer fixture-api-key",
+                }, None
 
             assert token_hex.call_count == run_index + 1
             token_hex.assert_called_with(8)
@@ -597,6 +644,7 @@ def test_runtime_round_trip_preserves_complete_message(reasoning):
         for private in (
             "fixture-api-key", "fixture-private-content",
             "fixture-private-metadata", "fixture-private-reasoning",
+            "fixture-private-raw-response",
         ):
             assert private not in reportable
             assert private not in repr(result)
@@ -658,6 +706,8 @@ def test_malformed_tool_call_stops_before_execution(field, value):
     assert result.status == ResultStatus.FAIL
     assert result.support == SupportStatus.UNKNOWN
     assert result.error_code == "TOOL_CALL_INVALID"
+    assert result.evidence["tool_call_observed"] is True
+    assert result.evidence["tool_call_validation"] == "invalid"
     request.assert_called_once()
 
 

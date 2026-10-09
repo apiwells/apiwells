@@ -198,6 +198,7 @@ def run_deep_diagnostics(
                 model=model,
                 key=key,
                 timeout=timeout,
+                max_tokens=max_tokens,
                 use_env_proxy=use_env_proxy,
             ),
             StructuredOutputProbe(

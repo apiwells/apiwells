@@ -485,6 +485,16 @@ class DeepRunnerTests(unittest.TestCase):
             first_tool_payload["stream"]
         )
 
+        self.assertEqual(
+            first_tool_payload["max_tokens"],
+            8,
+        )
+
+        self.assertEqual(
+            second_tool_payload["max_tokens"],
+            8,
+        )
+
         # 第二次请求必须把本地工具执行结果回传给模型
         tool_messages = [
             message

@@ -2,7 +2,23 @@
 
 ## Unreleased
 
-No unreleased changes are recorded yet.
+- Fix Deep Runner generation-budget propagation so Tool Calling receives the
+  configured `max_tokens` value instead of unintentionally using its 32-token
+  direct-use default. This prevents reasoning-enabled models from being
+  artificially truncated when Deep uses a larger configured budget.
+- Add safe Tool Calling evidence that distinguishes no observed call from a
+  malformed call without changing the public error-code enum or retaining raw
+  reasoning or response bodies.
+- Allow a sufficiently specific feature-related strict `json_schema` rejection
+  to proceed to the independent `json_object` capability sub-test. Strict-schema
+  support remains `UNKNOWN` when the evidence does not prove permanent lack of
+  support, while `json_object` acceptance, parsing and object validation are
+  reported separately and conservatively.
+- Add regression coverage for Tool Calling budget propagation and evidence,
+  Structured Output fallback eligibility, invalid output, request counts and
+  secret safety.
+- No CLI syntax, exit-code, runtime dependency, public Python signature,
+  error-code enum or top-level JSON report schema changes.
 
 ## 0.2.2 — 2026-10-05
 

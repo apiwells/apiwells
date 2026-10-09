@@ -21,8 +21,8 @@ Keep unit tests offline. Use the tests under `tests/` to cover:
 | JSON parsing | Valid and malformed JSON, invalid response shapes, non-JSON HTTP 200 responses, bounded response reads |
 | SSE parsing | LF/CRLF, multiline data, comments, UTF-8, event boundaries, malformed JSON, broken/pending events, missing DONE and interrupted streams |
 | TTFT/latency | Measure from request start to the first valid model-output event; HTTP headers, keepalive, role-only, empty and metadata-only events do not count; total latency remains distinct |
-| Tool Calling | Correct tool name/ID, arguments JSON and schema, diagnostic challenge, local execution, tool-result linkage, second request and final response using the runtime tool result |
-| Structured Output | Strict JSON Schema success, malformed JSON, wrong types/extra properties, explicit unsupported detection, json_object-only result distinct from schema support |
+| Tool Calling | Deep Runner `max_tokens` propagation; correct tool name/ID, arguments JSON and schema, diagnostic challenge, local execution, tool-result linkage, second request and final response using the runtime tool result; safe evidence distinguishing no call observed from a malformed call |
+| Structured Output | Strict JSON Schema success; explicit unsupported and feature-related rejection classification; unrelated 400 and recognized authentication/rate-limit/not-found/upstream failures do not trigger the independent sub-test; valid `json_object` support; invalid and non-object JSON remain conservatively classified; sub-capability evidence and secret safety |
 | Usage | Provider-reported nonnegative integer fields, partial/missing/invalid fields, streaming merge, no estimated counts or derived missing totals |
 | Reporters | Console, versioned JSON and legacy compatibility output; schema/package versions, fields/order, aggregation, secret safety, stdout/stderr and exit codes |
 
@@ -47,7 +47,13 @@ SSE, invalid tool arguments, full tool round trips and Structured Output
 outcomes. Verify that Deep stops before billable probes when Basic does not
 pass. Check redirect blocking and request counts: no hidden billable retry;
 only the documented Tool Calling second request and conditional
-`json_object` sub-test may add their respective requests.
+`json_object` sub-test may add their respective requests. Verify that feature-
+related strict-format rejection can enable the independent sub-test without
+proving strict schema unsupported, while unrelated client errors and recognized
+HTTP/authentication/upstream failures remain single-request paths. For accepted
+`json_object` responses, distinguish valid objects from invalid JSON and
+non-object JSON without turning output-validation failure into unsupported
+capability evidence.
 
 With a prepared development/test environment:
 

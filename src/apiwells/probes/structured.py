@@ -246,17 +246,25 @@ class StructuredOutputProbe:
         return ""
 
     @classmethod
-    def _explicitly_unsupported(
+    def _format_rejection_classification(
         cls,
         data: object,
         format_type: str,
-    ) -> bool:
+    ) -> str | None:
         message = cls._provider_message(
             data
         ).lower()
 
         if not message:
-            return False
+            return None
+
+        format_mentioned = (
+            format_type.lower() in message
+            or "response_format" in message
+        )
+
+        if not format_mentioned:
+            return None
 
         unsupported_words = (
             "not supported",
@@ -264,18 +272,35 @@ class StructuredOutputProbe:
             "does not support",
         )
 
-        if not any(
+        if any(
             word in message
             for word in unsupported_words
         ):
-            return False
+            return "explicitly_unsupported"
 
-        return (
-            format_type.lower()
-            in message
-            or "response_format"
-            in message
+        feature_rejection_words = (
+            "unavailable",
+            "not available",
         )
+
+        if any(
+            word in message
+            for word in feature_rejection_words
+        ):
+            return "feature_rejected"
+
+        return None
+
+    @classmethod
+    def _explicitly_unsupported(
+        cls,
+        data: object,
+        format_type: str,
+    ) -> bool:
+        return cls._format_rejection_classification(
+            data,
+            format_type,
+        ) == "explicitly_unsupported"
 
     @staticmethod
     def _http_error_code(
@@ -318,7 +343,9 @@ class StructuredOutputProbe:
                     json_object_http_status
                 ),
                 "json_schema_request_accepted": True,
+                "json_schema_support": "UNKNOWN",
                 "schema_validation_passed": False,
+                "json_object_tested": False,
             },
             error_code=(
                 "STRUCTURED_OUTPUT_INVALID"
@@ -405,10 +432,20 @@ class StructuredOutputProbe:
             schema_status is None
             or not 200 <= schema_status < 300
         ):
-            if not self._explicitly_unsupported(
-                schema_data,
-                "json_schema",
-            ):
+            schema_http_error = self._http_error_code(
+                schema_status
+            )
+            rejection_classification = None
+
+            if schema_http_error is None:
+                rejection_classification = (
+                    self._format_rejection_classification(
+                        schema_data,
+                        "json_schema",
+                    )
+                )
+
+            if rejection_classification is None:
                 return ProbeResult(
                     name="structured_output",
                     status=ResultStatus.FAIL,
@@ -431,18 +468,46 @@ class StructuredOutputProbe:
                             schema_status
                         ),
                         "json_schema_request_accepted": False,
+                        "json_schema_support": "UNKNOWN",
+                        "json_schema_rejection": (
+                            "unclassified"
+                        ),
+                        "json_object_tested": False,
                     },
-                    error_code=self._http_error_code(
-                        schema_status
-                    ),
+                    error_code=schema_http_error,
                 )
 
-            # ---------------------------------------------
-            # Sub-test 2: legacy json_object
-            #
-            # This is an independent capability test,
-            # not a retry of the json_schema request.
-            # ---------------------------------------------
+            schema_support = (
+                SupportStatus.UNSUPPORTED
+                if rejection_classification
+                == "explicitly_unsupported"
+                else SupportStatus.UNKNOWN
+            )
+            schema_description = (
+                "json_schema is unsupported"
+                if schema_support
+                is SupportStatus.UNSUPPORTED
+                else (
+                    "json_schema was rejected without "
+                    "proving it unsupported"
+                )
+            )
+            fallback_evidence = {
+                "model": self.model,
+                "json_schema_http_status": (
+                    schema_status
+                ),
+                "json_schema_request_accepted": False,
+                "json_schema_support": (
+                    schema_support.value
+                ),
+                "json_schema_rejection": (
+                    rejection_classification
+                ),
+                "json_object_tested": True,
+            }
+
+            # This is an independent capability test, not a retry.
 
             object_payload = self._payload(
                 "json_object"
@@ -463,9 +528,9 @@ class StructuredOutputProbe:
                 return ProbeResult(
                     name="structured_output",
                     status=ResultStatus.FAIL,
-                    support=SupportStatus.UNSUPPORTED,
+                    support=schema_support,
                     summary=(
-                        "json_schema is unsupported, "
+                        schema_description + ", "
                         "but the json_object capability "
                         "test could not complete."
                     ),
@@ -476,16 +541,15 @@ class StructuredOutputProbe:
                         "request_count": 2,
                     },
                     evidence={
-                        "model": self.model,
+                        **fallback_evidence,
                         "outcome": "unknown",
-                        "json_schema_http_status": (
-                            schema_status
-                        ),
                         "json_object_http_status": (
                             object_status
                         ),
-                        "json_schema_request_accepted": False,
                         "json_object_request_accepted": False,
+                        "json_object_support": "UNKNOWN",
+                        "json_object_json_parsed": None,
+                        "json_object_is_object": None,
                     },
                     error_code=(
                         object_observation.error_code
@@ -496,9 +560,9 @@ class StructuredOutputProbe:
                 return ProbeResult(
                     name="structured_output",
                     status=ResultStatus.FAIL,
-                    support=SupportStatus.UNSUPPORTED,
+                    support=schema_support,
                     summary=(
-                        "json_schema is unsupported, "
+                        schema_description + ", "
                         "but the json_object response "
                         "exceeded the allowed size."
                     ),
@@ -509,16 +573,15 @@ class StructuredOutputProbe:
                         "request_count": 2,
                     },
                     evidence={
-                        "model": self.model,
+                        **fallback_evidence,
                         "outcome": "unknown",
-                        "json_schema_http_status": (
-                            schema_status
-                        ),
                         "json_object_http_status": (
                             object_status
                         ),
-                        "json_schema_request_accepted": False,
                         "json_object_request_accepted": False,
+                        "json_object_support": "UNKNOWN",
+                        "json_object_json_parsed": None,
+                        "json_object_is_object": None,
                     },
                     error_code="RESPONSE_TOO_LARGE",
                 )
@@ -527,18 +590,24 @@ class StructuredOutputProbe:
                 object_status is None
                 or not 200 <= object_status < 300
             ):
-                if self._explicitly_unsupported(
-                    object_data,
-                    "json_object",
+                object_http_error = self._http_error_code(
+                    object_status
+                )
+
+                if (
+                    object_http_error is None
+                    and self._explicitly_unsupported(
+                        object_data,
+                        "json_object",
+                    )
                 ):
                     return ProbeResult(
                         name="structured_output",
                         status=ResultStatus.PARTIAL,
-                        support=SupportStatus.UNSUPPORTED,
+                        support=schema_support,
                         summary=(
-                            "Neither json_schema nor "
-                            "json_object Structured Output "
-                            "mode is supported."
+                            schema_description.capitalize()
+                            + ", and json_object is unsupported."
                         ),
                         metrics={
                             "total_latency_ms": self._elapsed_ms(
@@ -547,16 +616,15 @@ class StructuredOutputProbe:
                             "request_count": 2,
                         },
                         evidence={
-                            "model": self.model,
+                            **fallback_evidence,
                             "outcome": "unsupported",
-                            "json_schema_http_status": (
-                                schema_status
-                            ),
                             "json_object_http_status": (
                                 object_status
                             ),
-                            "json_schema_request_accepted": False,
                             "json_object_request_accepted": False,
+                            "json_object_support": "UNSUPPORTED",
+                            "json_object_json_parsed": None,
+                            "json_object_is_object": None,
                         },
                         error_code="FEATURE_UNSUPPORTED",
                     )
@@ -564,9 +632,9 @@ class StructuredOutputProbe:
                 return ProbeResult(
                     name="structured_output",
                     status=ResultStatus.FAIL,
-                    support=SupportStatus.UNSUPPORTED,
+                    support=schema_support,
                     summary=(
-                        "json_schema is unsupported, "
+                        schema_description + ", "
                         "but the json_object capability "
                         "test was rejected without proving "
                         "that json_object is unsupported."
@@ -578,20 +646,17 @@ class StructuredOutputProbe:
                         "request_count": 2,
                     },
                     evidence={
-                        "model": self.model,
+                        **fallback_evidence,
                         "outcome": "unknown",
-                        "json_schema_http_status": (
-                            schema_status
-                        ),
                         "json_object_http_status": (
                             object_status
                         ),
-                        "json_schema_request_accepted": False,
                         "json_object_request_accepted": False,
+                        "json_object_support": "UNKNOWN",
+                        "json_object_json_parsed": None,
+                        "json_object_is_object": None,
                     },
-                    error_code=self._http_error_code(
-                        object_status
-                    ),
+                    error_code=object_http_error,
                 )
 
             object_content = self._assistant_content(
@@ -602,7 +667,7 @@ class StructuredOutputProbe:
                 return ProbeResult(
                     name="structured_output",
                     status=ResultStatus.FAIL,
-                    support=SupportStatus.UNSUPPORTED,
+                    support=schema_support,
                     summary=(
                         "json_object was accepted but did "
                         "not return valid assistant content."
@@ -614,18 +679,17 @@ class StructuredOutputProbe:
                         "request_count": 2,
                     },
                     evidence={
-                        "model": self.model,
+                        **fallback_evidence,
                         "outcome": (
                             "invalid_implementation"
-                        ),
-                        "json_schema_http_status": (
-                            schema_status
                         ),
                         "json_object_http_status": (
                             object_status
                         ),
-                        "json_schema_request_accepted": False,
                         "json_object_request_accepted": True,
+                        "json_object_support": "UNKNOWN",
+                        "json_object_json_parsed": False,
+                        "json_object_is_object": None,
                     },
                     error_code=(
                         "STRUCTURED_OUTPUT_INVALID"
@@ -644,7 +708,7 @@ class StructuredOutputProbe:
                 return ProbeResult(
                     name="structured_output",
                     status=ResultStatus.FAIL,
-                    support=SupportStatus.UNSUPPORTED,
+                    support=schema_support,
                     summary=(
                         "json_object was accepted but "
                         "returned invalid JSON."
@@ -656,18 +720,17 @@ class StructuredOutputProbe:
                         "request_count": 2,
                     },
                     evidence={
-                        "model": self.model,
+                        **fallback_evidence,
                         "outcome": (
                             "invalid_implementation"
-                        ),
-                        "json_schema_http_status": (
-                            schema_status
                         ),
                         "json_object_http_status": (
                             object_status
                         ),
-                        "json_schema_request_accepted": False,
                         "json_object_request_accepted": True,
+                        "json_object_support": "UNKNOWN",
+                        "json_object_json_parsed": False,
+                        "json_object_is_object": None,
                     },
                     error_code=(
                         "STRUCTURED_OUTPUT_INVALID"
@@ -681,7 +744,7 @@ class StructuredOutputProbe:
                 return ProbeResult(
                     name="structured_output",
                     status=ResultStatus.FAIL,
-                    support=SupportStatus.UNSUPPORTED,
+                    support=schema_support,
                     summary=(
                         "json_object was accepted but "
                         "did not return a JSON object."
@@ -693,18 +756,17 @@ class StructuredOutputProbe:
                         "request_count": 2,
                     },
                     evidence={
-                        "model": self.model,
+                        **fallback_evidence,
                         "outcome": (
                             "invalid_implementation"
-                        ),
-                        "json_schema_http_status": (
-                            schema_status
                         ),
                         "json_object_http_status": (
                             object_status
                         ),
-                        "json_schema_request_accepted": False,
                         "json_object_request_accepted": True,
+                        "json_object_support": "UNKNOWN",
+                        "json_object_json_parsed": True,
+                        "json_object_is_object": False,
                     },
                     error_code=(
                         "STRUCTURED_OUTPUT_INVALID"
@@ -714,10 +776,19 @@ class StructuredOutputProbe:
             return ProbeResult(
                 name="structured_output",
                 status=ResultStatus.PARTIAL,
-                support=SupportStatus.UNSUPPORTED,
+                support=schema_support,
                 summary=(
-                    "Strict json_schema is unsupported, "
-                    "but json_object mode is supported."
+                    (
+                        "Strict json_schema is unsupported, "
+                        "but json_object mode is supported."
+                    )
+                    if schema_support
+                    is SupportStatus.UNSUPPORTED
+                    else (
+                        "Strict json_schema was rejected without "
+                        "proving it unsupported, but json_object "
+                        "mode is supported."
+                    )
                 ),
                 metrics={
                     "total_latency_ms": self._elapsed_ms(
@@ -726,18 +797,27 @@ class StructuredOutputProbe:
                     "request_count": 2,
                 },
                 evidence={
-                    "model": self.model,
-                    "outcome": "json_object_only",
-                    "json_schema_http_status": (
-                        schema_status
+                    **fallback_evidence,
+                    "outcome": (
+                        "json_object_only"
+                        if schema_support
+                        is SupportStatus.UNSUPPORTED
+                        else "json_object_supported"
                     ),
                     "json_object_http_status": (
                         object_status
                     ),
-                    "json_schema_request_accepted": False,
                     "json_object_request_accepted": True,
+                    "json_object_support": "SUPPORTED",
+                    "json_object_json_parsed": True,
+                    "json_object_is_object": True,
                 },
-                error_code="FEATURE_UNSUPPORTED",
+                error_code=(
+                    "FEATURE_UNSUPPORTED"
+                    if schema_support
+                    is SupportStatus.UNSUPPORTED
+                    else None
+                ),
             )
 
         # -------------------------------------------------
@@ -812,6 +892,8 @@ class StructuredOutputProbe:
                     schema_status
                 ),
                 "json_schema_request_accepted": True,
+                "json_schema_support": "SUPPORTED",
                 "schema_validation_passed": True,
+                "json_object_tested": False,
             },
         )

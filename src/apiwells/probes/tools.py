@@ -210,6 +210,71 @@ class ToolCallingProbe:
 
         return message
 
+    @staticmethod
+    def _response_evidence(
+        data: object,
+    ) -> dict[str, object]:
+        """Extract safe scalar diagnostics from a completion response."""
+
+        evidence: dict[str, object] = {}
+
+        if not isinstance(data, dict):
+            return evidence
+
+        choices = data.get("choices")
+
+        if (
+            isinstance(choices, list)
+            and choices
+            and isinstance(choices[0], dict)
+        ):
+            first_choice = choices[0]
+            finish_reason = first_choice.get(
+                "finish_reason"
+            )
+
+            if isinstance(finish_reason, str):
+                evidence["first_finish_reason"] = (
+                    finish_reason
+                )
+
+            message = first_choice.get("message")
+
+            if isinstance(message, dict):
+                reasoning = message.get(
+                    "reasoning_content"
+                )
+                evidence[
+                    "first_reasoning_content_present"
+                ] = bool(
+                    isinstance(reasoning, str)
+                    and reasoning.strip()
+                )
+
+        usage = data.get("usage")
+
+        if isinstance(usage, dict):
+            for source, target in (
+                (
+                    "completion_tokens",
+                    "first_completion_tokens",
+                ),
+                (
+                    "total_tokens",
+                    "first_total_tokens",
+                ),
+            ):
+                value = usage.get(source)
+
+                if (
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and value >= 0
+                ):
+                    evidence[target] = value
+
+        return evidence
+
     @classmethod
     def _validate_tool_call(
         cls,
@@ -438,6 +503,9 @@ class ToolCallingProbe:
         first_message = self._assistant_message(
             first_data
         )
+        first_response_evidence = (
+            self._response_evidence(first_data)
+        )
 
         if first_message is None:
             return ProbeResult(
@@ -460,6 +528,7 @@ class ToolCallingProbe:
                         first_http_status
                     ),
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
                 error_code="TOOL_CALL_INVALID",
             )
@@ -492,7 +561,12 @@ class ToolCallingProbe:
                     "first_http_status": (
                         first_http_status
                     ),
+                    "tool_call_observed": False,
+                    "tool_call_validation": (
+                        "not_observed"
+                    ),
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
                 error_code="FEATURE_UNSUPPORTED",
             )
@@ -517,7 +591,12 @@ class ToolCallingProbe:
                     "first_http_status": (
                         first_http_status
                     ),
+                    "tool_call_observed": False,
+                    "tool_call_validation": (
+                        "not_observed"
+                    ),
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
                 error_code="TOOL_CALL_INVALID",
             )
@@ -542,7 +621,10 @@ class ToolCallingProbe:
                     "first_http_status": (
                         first_http_status
                     ),
+                    "tool_call_observed": True,
+                    "tool_call_validation": "invalid",
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
                 error_code="TOOL_CALL_INVALID",
             )
@@ -605,7 +687,10 @@ class ToolCallingProbe:
                     "local_tool_result": (
                         local_result
                     ),
+                    "tool_call_observed": True,
+                    "tool_call_validation": "valid",
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
                 error_code=second_error,
             )
@@ -640,7 +725,10 @@ class ToolCallingProbe:
                     "local_tool_result": (
                         local_result
                     ),
+                    "tool_call_observed": True,
+                    "tool_call_validation": "valid",
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
             )
 
@@ -674,7 +762,10 @@ class ToolCallingProbe:
                     "local_tool_result": (
                         local_result
                     ),
+                    "tool_call_observed": True,
+                    "tool_call_validation": "valid",
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
                 error_code="TOOL_CALL_INVALID",
             )
@@ -713,7 +804,10 @@ class ToolCallingProbe:
                     "local_tool_result": (
                         local_result
                     ),
+                    "tool_call_observed": True,
+                    "tool_call_validation": "valid",
                     "round_trip_completed": False,
+                    **first_response_evidence,
                 },
                 error_code="TOOL_CALL_INVALID",
             )
@@ -744,6 +838,9 @@ class ToolCallingProbe:
                 "local_tool_result": (
                     local_result
                 ),
+                "tool_call_observed": True,
+                "tool_call_validation": "valid",
                 "round_trip_completed": True,
+                **first_response_evidence,
             },
         )

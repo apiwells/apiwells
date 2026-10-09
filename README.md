@@ -76,16 +76,19 @@ Deep makes multiple potentially billable inference requests:
   local diagnostic tool execution, tool result, second request and a final
   response using that result. Merely accepting `tools` is insufficient.
 - Structured Output must return JSON that passes the requested JSON Schema.
-  An explicit rejection of `json_schema` as unsupported can trigger one
-  additional, potentially billable `json_object` sub-test. JSON-object-only
-  success does not certify strict JSON Schema support.
+  An explicit unsupported rejection or a sufficiently specific feature-related
+  `json_schema`/`response_format` rejection can trigger one additional,
+  potentially billable `json_object` sub-test. That sub-test does not by itself
+  classify strict schema support as unsupported; support may remain unknown,
+  and JSON-object-only success does not certify strict JSON Schema support.
 
 There are no hidden billable retries or fallback models. The Tool Calling
 second request and conditional Structured Output sub-test are diagnostic steps,
 with request counts included in their results. `--max-tokens` controls applicable
-generation budgets and is not a guaranteed total cost ceiling; diagnostic
-sub-tests may use bounded request parameters. Provider support varies; not every
-endpoint supports every capability.
+generation budgets, including both Tool Calling requests in Deep mode, and is
+not a guaranteed total cost ceiling; diagnostic sub-tests may use bounded
+request parameters. Provider support varies; not every endpoint supports every
+capability.
 
 ## Legacy chat compatibility
 

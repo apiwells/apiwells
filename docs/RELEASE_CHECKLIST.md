@@ -379,3 +379,94 @@ it is not Ubuntu/macOS real-provider certification.
 This documentation closeout follows the frozen release source and annotated
 tag. It does not move `v0.2.2`, rebuild canonical artifacts or alter the
 Production PyPI release.
+
+# v0.2.3 Patch Release Preparation
+
+Release type: **Runtime Capability Diagnostic Fix**
+
+Release status: **PRE-RELEASE / HUMAN REVIEW PENDING**
+
+Target package: `apiwells==0.2.3`
+
+Scope: correct Deep Tool Calling generation-budget propagation and improve
+Structured Output sub-capability discovery after a sufficiently specific
+feature-related strict-format rejection. Preserve existing CLI syntax, exit
+codes, dependencies, public Python signatures, error-code enum and top-level
+JSON report schema.
+
+## v0.2.3 completed preparation evidence
+
+- [x] Tool Calling root cause identified.
+- [x] Structured Output root cause identified.
+- [x] Tool Calling code fix reviewed.
+- [x] Structured Output code fix reviewed.
+- [x] Targeted automated tests pass.
+- [x] Full local regression before version synchronization: **297 passed, 72 subtests passed**.
+- [x] Real DeepSeek Tool Calling regression validation: **PASS / SUPPORTED**.
+- [x] Real DeepSeek Structured Output regression validation: **PARTIAL / UNKNOWN**, with `json_object` **SUPPORTED**.
+- [x] Overall real DeepSeek validation observed **PARTIAL**.
+- [x] Live CLI exit code **1**, consistent with the existing PARTIAL contract.
+- [x] No error-code enum change.
+- [x] No CLI syntax change.
+- [x] No dependency change.
+- [x] Version identity synchronized to **0.2.3** in the local candidate source.
+- [x] Post-version-bump full regression: **297 passed, 72 subtests passed**.
+
+## v0.2.3 point-in-time patch regression evidence
+
+The following sanitized evidence was observed on **2026-10-08** using DeepSeek
+Official, `https://api.deepseek.com`, model `deepseek-flash`, with 0.2.2 package
+identity plus the accepted local 0.2.3 candidate fix. This is patch-regression
+evidence, not a provider guarantee, benchmark, performance certification or
+replacement for MODEL-0001.
+
+| Capability | Observed result |
+|---|---|
+| Tool Calling | PASS / SUPPORTED; 2 requests; first/second HTTP 200; round trip completed; first finish reason `tool_calls`; reasoning content present; first completion tokens 61 |
+| Structured Output | PARTIAL / UNKNOWN; 2 requests; strict `json_schema` HTTP 400, rejected, UNKNOWN, `feature_rejected`; `json_object` HTTP 200, accepted, SUPPORTED, parsed JSON object |
+| Overall / CLI | PARTIAL; exit code 1 |
+
+No API key, Authorization value, local diagnostic tool token, raw reasoning,
+provider request ID or unnecessary network/latency detail is recorded here.
+
+## v0.2.3 candidate artifact acceptance
+
+The following Phase 2 results apply only to the **candidate artifacts**. They
+are preparation evidence, not canonical release acceptance, and the artifacts
+must not be reused as the canonical release build.
+
+- [x] Release documentation final human review.
+- [x] Candidate wheel build PASS.
+- [x] Candidate sdist build PASS.
+- [x] Candidate `twine check --strict` PASS.
+- [x] Candidate wheel clean install PASS.
+- [x] Candidate sdist clean install PASS.
+- [x] Candidate wheel `pip check` PASS.
+- [x] Candidate sdist `pip check` PASS.
+- [x] Candidate wheel CLI/version/import identity PASS.
+- [x] Candidate sdist CLI/version/import identity PASS.
+- [x] Candidate artifacts contain the accepted Tool Calling fix.
+- [x] Candidate artifacts contain the accepted Structured Output fix.
+- [x] Candidate source fingerprint unchanged after artifact validation.
+- [x] Candidate implementation/test file hashes unchanged.
+- [x] Human Phase-2 artifact review PASS.
+
+Candidate artifact hashes (not canonical release hashes):
+
+- Wheel SHA256: `660c72f13ed103706d5871b3d502b4b85f12bc1e0ac8d8e14cb4a88830d8d705`
+- sdist SHA256: `89ba9965792912cc5760854e6e9ca3d4ee098fad8de80d2dd15334b7024ffe78`
+
+## v0.2.3 remaining release gates
+
+- [ ] Canonical wheel build.
+- [ ] Canonical sdist build.
+- [ ] Canonical artifact `twine check`.
+- [ ] Canonical clean-install acceptance.
+- [ ] Release-source CI.
+- [ ] Commit.
+- [ ] Annotated tag.
+- [ ] Push.
+- [ ] TestPyPI.
+- [ ] Production PyPI.
+- [ ] Production clean-install acceptance.
+- [ ] Final release **CLOSED / PASS**.

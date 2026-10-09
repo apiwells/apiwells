@@ -109,6 +109,48 @@ class StructuredHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if prefix in {"authfeature", "ratefeature"}:
+            self._send_json(
+                401 if prefix == "authfeature" else 429,
+                {
+                    "error": {
+                        "message": (
+                            "response_format type is unavailable now"
+                        )
+                    }
+                },
+            )
+            return
+
+        # A feature-related rejection permits the independent
+        # json_object sub-test without proving permanent non-support.
+        if prefix == "unavailablenow":
+            if format_type == "json_schema":
+                self._send_json(
+                    400,
+                    {
+                        "error": {
+                            "code": "invalid_request_error",
+                            "type": "invalid_request_error",
+                            "message": (
+                                "This response_format type is "
+                                "unavailable now "
+                                "fixture-provider-secret"
+                            ),
+                        }
+                    },
+                )
+                return
+
+            if format_type == "json_object":
+                self._send_json(
+                    200,
+                    self._completion(
+                        '{"diagnostic":42}'
+                    ),
+                )
+                return
+
         # json_schema is explicitly unsupported, but
         # legacy json_object mode works.
         if prefix == "jsonobjectonly":
@@ -134,6 +176,35 @@ class StructuredHandler(BaseHTTPRequestHandler):
                     ),
                 )
                 return
+
+        if prefix in {
+            "jsonobjectinvalid",
+            "jsonobjectnonobject",
+        }:
+            if format_type == "json_schema":
+                self._send_json(
+                    400,
+                    {
+                        "error": {
+                            "message": (
+                                "response_format type json_schema "
+                                "is not supported"
+                            )
+                        }
+                    },
+                )
+                return
+
+            content = (
+                "not-json"
+                if prefix == "jsonobjectinvalid"
+                else "[1, 2, 3]"
+            )
+            self._send_json(
+                200,
+                self._completion(content),
+            )
+            return
 
         # Neither structured mode is supported.
         if prefix == "unsupported":
@@ -444,6 +515,16 @@ class StructuredOutputProbeTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            result.evidence["json_schema_support"],
+            "UNSUPPORTED",
+        )
+
+        self.assertEqual(
+            result.evidence["json_object_support"],
+            "SUPPORTED",
+        )
+
+        self.assertEqual(
             result.metrics["request_count"],
             2,
         )
@@ -484,6 +565,103 @@ class StructuredOutputProbeTests(unittest.TestCase):
         self.assertIn(
             "JSON",
             user_content,
+        )
+
+    def test_feature_rejection_still_tests_json_object(self):
+        result = StructuredOutputProbe(
+            self.base + "/unavailablenow",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(
+            result.status,
+            ResultStatus.PARTIAL,
+        )
+        self.assertEqual(
+            result.support,
+            SupportStatus.UNKNOWN,
+        )
+        self.assertIsNone(result.error_code)
+        self.assertEqual(
+            result.metrics["request_count"],
+            2,
+        )
+        self.assertEqual(
+            result.evidence["json_schema_rejection"],
+            "feature_rejected",
+        )
+        self.assertEqual(
+            result.evidence["json_schema_support"],
+            "UNKNOWN",
+        )
+        self.assertTrue(
+            result.evidence["json_object_tested"]
+        )
+        self.assertEqual(
+            result.evidence["json_object_support"],
+            "SUPPORTED",
+        )
+        self.assertTrue(
+            result.evidence["json_object_json_parsed"]
+        )
+        self.assertTrue(
+            result.evidence["json_object_is_object"]
+        )
+        self.assertEqual(
+            len(StructuredHandler.calls),
+            2,
+        )
+        self.assertNotIn(
+            "fixture-provider-secret",
+            repr(result),
+        )
+
+    def test_json_object_invalid_json_keeps_support_unknown(self):
+        result = StructuredOutputProbe(
+            self.base + "/jsonobjectinvalid",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(result.status, ResultStatus.FAIL)
+        self.assertEqual(
+            result.evidence["json_schema_support"],
+            "UNSUPPORTED",
+        )
+        self.assertEqual(
+            result.evidence["json_object_support"],
+            "UNKNOWN",
+        )
+        self.assertFalse(
+            result.evidence["json_object_json_parsed"]
+        )
+        self.assertIsNone(
+            result.evidence["json_object_is_object"]
+        )
+        self.assertEqual(
+            result.metrics["request_count"],
+            2,
+        )
+
+    def test_json_object_non_object_keeps_support_unknown(self):
+        result = StructuredOutputProbe(
+            self.base + "/jsonobjectnonobject",
+            model="demo-model",
+        ).run()
+
+        self.assertEqual(result.status, ResultStatus.FAIL)
+        self.assertEqual(
+            result.evidence["json_object_support"],
+            "UNKNOWN",
+        )
+        self.assertTrue(
+            result.evidence["json_object_json_parsed"]
+        )
+        self.assertFalse(
+            result.evidence["json_object_is_object"]
+        )
+        self.assertEqual(
+            result.metrics["request_count"],
+            2,
         )
 
     def test_both_modes_unsupported_is_partial(self):
@@ -578,6 +756,46 @@ class StructuredOutputProbeTests(unittest.TestCase):
             len(StructuredHandler.calls),
             1,
         )
+
+        self.assertFalse(
+            result.evidence["json_object_tested"]
+        )
+
+    def test_auth_and_rate_limit_do_not_trigger_fallback(self):
+        for path, error_code in (
+            ("authfeature", "AUTH_INVALID"),
+            ("ratefeature", "RATE_LIMITED"),
+        ):
+            with self.subTest(path=path):
+                StructuredHandler.calls.clear()
+                result = StructuredOutputProbe(
+                    self.base + "/" + path,
+                    model="demo-model",
+                ).run()
+
+                self.assertEqual(
+                    result.status,
+                    ResultStatus.FAIL,
+                )
+                self.assertEqual(
+                    result.support,
+                    SupportStatus.UNKNOWN,
+                )
+                self.assertEqual(
+                    result.error_code,
+                    error_code,
+                )
+                self.assertEqual(
+                    result.metrics["request_count"],
+                    1,
+                )
+                self.assertEqual(
+                    len(StructuredHandler.calls),
+                    1,
+                )
+                self.assertFalse(
+                    result.evidence["json_object_tested"]
+                )
 
     def test_secret_is_not_stored_in_result(self):
         result = StructuredOutputProbe(
